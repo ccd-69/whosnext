@@ -1,6 +1,6 @@
-import { Card } from './types.js';
+import { Card, CardPack } from './types.js';
 
-export const DEFAULT_BLACK_CARDS: Card[] = [
+export const BASE_BLACK_CARDS: Card[] = [
   { id: 'b1', text: 'Why can\'t I sleep at night?', type: 'black', pickCount: 1 },
   { id: 'b2', text: 'What\'s that smell?', type: 'black', pickCount: 1 },
   { id: 'b3', text: 'I got 99 problems but _____ ain\'t one.', type: 'black', pickCount: 1 },
@@ -23,7 +23,7 @@ export const DEFAULT_BLACK_CARDS: Card[] = [
   { id: 'b20', text: '_____ is a slippery slope that leads to _____.', type: 'black', pickCount: 2 },
 ];
 
-export const DEFAULT_WHITE_CARDS: Card[] = [
+export const BASE_WHITE_CARDS: Card[] = [
   { id: 'w1', text: 'Coat hanger abortions', type: 'white' },
   { id: 'w2', text: 'Man meat', type: 'white' },
   { id: 'w3', text: 'Autocannibalism', type: 'white' },
@@ -75,6 +75,170 @@ export const DEFAULT_WHITE_CARDS: Card[] = [
   { id: 'w49', text: 'Father\'s disappointment', type: 'white' },
   { id: 'w50', text: 'AXE Body Spray', type: 'white' },
 ];
+
+export const NSFW_BLACK_CARDS: Card[] = [
+  { id: 'nb1', text: 'During sex, I like to think about _____.', type: 'black', pickCount: 1 },
+  { id: 'nb2', text: 'What did I bring back from Mexico?', type: 'black', pickCount: 1 },
+  { id: 'nb3', text: 'What\'s the most sensitive part of the body?', type: 'black', pickCount: 1 },
+  { id: 'nb4', text: 'I like my women like I like my _____.', type: 'black', pickCount: 1 },
+  { id: 'nb5', text: 'What gets me wet?', type: 'black', pickCount: 1 },
+  { id: 'nb6', text: 'Tonight on 60 Minutes: _____ exposed.', type: 'black', pickCount: 1 },
+  { id: 'nb7', text: 'After four years of college, I finally got a degree in _____.', type: 'black', pickCount: 1 },
+  { id: 'nb8', text: '_____: good to the last drop.', type: 'black', pickCount: 1 },
+  { id: 'nb9', text: 'What\'s my favorite bedroom activity?', type: 'black', pickCount: 1 },
+  { id: 'nb10', text: 'In the bedroom, I\'m known as "The _____."', type: 'black', pickCount: 1 },
+];
+
+export const NSFW_WHITE_CARDS: Card[] = [
+  { id: 'nw1', text: 'Anal beads', type: 'white' },
+  { id: 'nw2', text: 'A massive orgy', type: 'white' },
+  { id: 'nw3', text: 'A used tampon', type: 'white' },
+  { id: 'nw4', text: 'Double penetration', type: 'white' },
+  { id: 'nw5', text: 'Eating ass', type: 'white' },
+  { id: 'nw6', text: 'A glory hole', type: 'white' },
+  { id: 'nw7', text: 'A Brazilian wax', type: 'white' },
+  { id: 'nw8', text: 'A micropenis', type: 'white' },
+  { id: 'nw9', text: 'A gimp suit', type: 'white' },
+  { id: 'nw10', text: 'Premature ejaculation', type: 'white' },
+  { id: 'nw11', text: 'A fleshlight', type: 'white' },
+  { id: 'nw12', text: 'Cybernetic enhancements', type: 'white' },
+  { id: 'nw13', text: 'A prolapsed anus', type: 'white' },
+  { id: 'nw14', text: 'Dick pics', type: 'white' },
+  { id: 'nw15', text: 'A pearl necklace', type: 'white' },
+  { id: 'nw16', text: 'Fisting', type: 'white' },
+  { id: 'nw17', text: 'A queef', type: 'white' },
+  { id: 'nw18', text: 'A rusty trombone', type: 'white' },
+  { id: 'nw19', text: 'A Cleveland steamer', type: 'white' },
+  { id: 'nw20', text: 'A strap-on', type: 'white' },
+  { id: 'nw21', text: 'A blowjob from a toothless hooker', type: 'white' },
+  { id: 'nw22', text: 'A cum sock', type: 'white' },
+  { id: 'nw23', text: 'Blue balls', type: 'white' },
+  { id: 'nw24', text: 'A yeast infection', type: 'white' },
+  { id: 'nw25', text: 'A bukkake', type: 'white' },
+  { id: 'nw26', text: 'Choking during sex', type: 'white' },
+  { id: 'nw27', text: 'A sybian', type: 'white' },
+  { id: 'nw28', text: 'Period blood', type: 'white' },
+  { id: 'nw29', text: 'A cock ring', type: 'white' },
+  { id: 'nw30', text: 'Tentacle porn', type: 'white' },
+];
+
+export const DARK_BLACK_CARDS: Card[] = [
+  { id: 'db1', text: 'What\'s the most emo?', type: 'black', pickCount: 1 },
+  { id: 'db2', text: 'What brought the orgy to a grinding halt?', type: 'black', pickCount: 1 },
+  { id: 'db3', text: 'When I am a billionaire, I shall erect a 50-foot statue to commemorate _____.', type: 'black', pickCount: 1 },
+  { id: 'db4', text: 'What\'s there a ton of in heaven?', type: 'black', pickCount: 1 },
+  { id: 'db5', text: 'The Smithsonian has just opened an interactive exhibit on _____.', type: 'black', pickCount: 1 },
+  { id: 'db6', text: 'When I am President of the United States, I will create the Department of _____.', type: 'black', pickCount: 1 },
+  { id: 'db7', text: 'Turns out that _____ was just _____ all along.', type: 'black', pickCount: 2 },
+  { id: 'db8', text: 'My country, \'tis of thee, sweet land of _____.', type: 'black', pickCount: 1 },
+  { id: 'db9', text: 'Alternative medicine is now embracing the curative powers of _____.', type: 'black', pickCount: 1 },
+  { id: 'db10', text: 'What\'s the new fad diet?', type: 'black', pickCount: 1 },
+];
+
+export const DARK_WHITE_CARDS: Card[] = [
+  { id: 'dw1', text: 'Auschwitz', type: 'white' },
+  { id: 'dw2', text: 'Hospice care', type: 'white' },
+  { id: 'dw3', text: 'A brain tumor', type: 'white' },
+  { id: 'dw4', text: 'Dead babies', type: 'white' },
+  { id: 'dw5', text: 'Drowning the homeless', type: 'white' },
+  { id: 'dw6', text: 'Child beauty pageants', type: 'white' },
+  { id: 'dw7', text: 'A miscarriage', type: 'white' },
+  { id: 'dw8', text: 'Heroin', type: 'white' },
+  { id: 'dw9', text: 'A gas chamber', type: 'white' },
+  { id: 'dw10', text: 'Date rape', type: 'white' },
+  { id: 'dw11', text: 'A school shooting', type: 'white' },
+  { id: 'dw12', text: 'Pedophiles', type: 'white' },
+  { id: 'dw13', text: 'The Holocaust', type: 'white' },
+  { id: 'dw14', text: 'Eugenics', type: 'white' },
+  { id: 'dw15', text: 'Dying alone and in pain', type: 'white' },
+  { id: 'dw16', text: 'A wheelchair-bound racist', type: 'white' },
+  { id: 'dw17', text: 'Chainsawing a orphan', type: 'white' },
+  { id: 'dw18', text: 'A Nazi doctor', type: 'white' },
+  { id: 'dw19', text: 'Ebola', type: 'white' },
+  { id: 'dw20', text: 'Selling crack to children', type: 'white' },
+  { id: 'dw21', text: 'Domestic violence', type: 'white' },
+  { id: 'dw22', text: 'A suicide bomber', type: 'white' },
+  { id: 'dw23', text: 'Racism', type: 'white' },
+  { id: 'dw24', text: 'AIDS', type: 'white' },
+  { id: 'dw25', text: 'Crucifixion', type: 'white' },
+  { id: 'dw26', text: 'The clitoris', type: 'white' },
+  { id: 'dw27', text: 'Picking up girls at the abortion clinic', type: 'white' },
+  { id: 'dw28', text: 'Genuine human connection', type: 'white' },
+  { id: 'dw29', text: 'Passive-aggressive Post-it notes', type: 'white' },
+  { id: 'dw30', text: 'A live studio audience', type: 'white' },
+];
+
+export const ABSURD_BLACK_CARDS: Card[] = [
+  { id: 'ab1', text: 'What is the answer to life, the universe, and everything?', type: 'black', pickCount: 1 },
+  { id: 'ab2', text: 'I never truly understood _____ until I encountered _____.', type: 'black', pickCount: 2 },
+  { id: 'ab3', text: 'What is Elon Musk\'s latest side project?', type: 'black', pickCount: 1 },
+  { id: 'ab4', text: 'The CIA is now using _____ to interrogate prisoners.', type: 'black', pickCount: 1 },
+  { id: 'ab5', text: 'In his farewell address, George Washington warned Americans about the dangers of _____.', type: 'black', pickCount: 1 },
+  { id: 'ab6', text: 'What do old people smell like?', type: 'black', pickCount: 1 },
+  { id: 'ab7', text: 'Why am I sticky?', type: 'black', pickCount: 1 },
+  { id: 'ab8', text: 'What\'s Teach for America using to inspire inner city students?', type: 'black', pickCount: 1 },
+  { id: 'ab9', text: 'Studies show that lab rats navigate mazes 50% faster after being exposed to _____.', type: 'black', pickCount: 1 },
+  { id: 'ab10', text: 'I do not know with what weapons World War III will be fought, but World War IV will be fought with _____.', type: 'black', pickCount: 1 },
+];
+
+export const ABSURD_WHITE_CARDS: Card[] = [
+  { id: 'aw1', text: 'A bowl of mayonnaise and human teeth', type: 'white' },
+  { id: 'aw2', text: 'A jar full of pickled toes', type: 'white' },
+  { id: 'aw3', text: 'A magic wand that only works on squirrels', type: 'white' },
+  { id: 'aw4', text: 'A lifetime supply of hamsters', type: 'white' },
+  { id: 'aw5', text: 'Soggy toast', type: 'white' },
+  { id: 'aw6', text: 'A taxidermied ferret in a tutu', type: 'white' },
+  { id: 'aw7', text: 'An endless loop of diarrhea', type: 'white' },
+  { id: 'aw8', text: 'A baby with a full mustache', type: 'white' },
+  { id: 'aw9', text: 'Licking a public toilet seat', type: 'white' },
+  { id: 'aw10', text: 'A reverse centaur', type: 'white' },
+  { id: 'aw11', text: 'A dog that can\'t stop barking at its own shadow', type: 'white' },
+  { id: 'aw12', text: 'Soup that is too hot', type: 'white' },
+  { id: 'aw13', text: 'A sentient Roomba with PTSD', type: 'white' },
+  { id: 'aw14', text: 'A conspiracy theorist who is actually right', type: 'white' },
+  { id: 'aw15', text: 'A cloud that looks exactly like your dead grandma', type: 'white' },
+  { id: 'aw16', text: 'A fish with legs', type: 'white' },
+  { id: 'aw17', text: 'A ham sandwich with no ham', type: 'white' },
+  { id: 'aw18', text: 'A crying clown who is also on fire', type: 'white' },
+  { id: 'aw19', text: 'A mime having a stroke', type: 'white' },
+  { id: 'aw20', text: 'A bucket of expired ranch dressing', type: 'white' },
+  { id: 'aw21', text: 'A time-traveling fart', type: 'white' },
+  { id: 'aw22', text: 'An egg that refuses to crack', type: 'white' },
+  { id: 'aw23', text: 'A parade of depressed pigeons', type: 'white' },
+  { id: 'aw24', text: 'A haunted washing machine', type: 'white' },
+  { id: 'aw25', text: 'A banana that judges you silently', type: 'white' },
+  { id: 'aw26', text: 'A sentient fart cloud', type: 'white' },
+  { id: 'aw27', text: 'A sock puppet with a gambling addiction', type: 'white' },
+  { id: 'aw28', text: 'A pigeon that knows your secrets', type: 'white' },
+  { id: 'aw29', text: 'A salad made of broken dreams', type: 'white' },
+  { id: 'aw30', text: 'A horse-sized duck that is also racist', type: 'white' },
+];
+
+export function getCardsForPacks(packs: CardPack[]) {
+  const blackCards: Card[] = [];
+  const whiteCards: Card[] = [];
+  for (const pack of packs) {
+    switch (pack) {
+      case 'base':
+        blackCards.push(...BASE_BLACK_CARDS);
+        whiteCards.push(...BASE_WHITE_CARDS);
+        break;
+      case 'nsfw':
+        blackCards.push(...NSFW_BLACK_CARDS);
+        whiteCards.push(...NSFW_WHITE_CARDS);
+        break;
+      case 'dark':
+        blackCards.push(...DARK_BLACK_CARDS);
+        whiteCards.push(...DARK_WHITE_CARDS);
+        break;
+      case 'absurd':
+        blackCards.push(...ABSURD_BLACK_CARDS);
+        whiteCards.push(...ABSURD_WHITE_CARDS);
+        break;
+    }
+  }
+  return { blackCards, whiteCards };
+}
 
 export function shuffleArray<T>(arr: T[]): T[] {
   const copy = [...arr];

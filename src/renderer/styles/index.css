@@ -55,7 +55,17 @@
   }
 
   .card-black {
-    @apply bg-black text-white p-4 rounded-xl shadow-lg
-           font-bold text-sm leading-tight border border-white/20;
+    @apply bg-[#1a1a2e] text-white p-4 rounded-xl shadow-lg
+           font-bold text-sm leading-tight border border-white/30;
+  }
+
+  .app-drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .app-drag-region button,
+  .app-drag-region input,
+  .app-drag-region a {
+    -webkit-app-region: no-drag;
   }
 }

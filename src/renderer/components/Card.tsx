@@ -1,12 +1,13 @@
 import React from 'react';
-import type { Card as CardType } from '../../shared/types';
+import type { Card as CardType } from '../../shared/types.js';
+import { PenLine } from 'lucide-react';
 
 interface CardProps {
   card: CardType;
   onClick?: () => void;
   disabled?: boolean;
   selected?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'compact' | 'md' | 'lg';
   revealed?: boolean;
 }
 
@@ -22,6 +23,7 @@ export default function Card({
 
   const sizeClasses = {
     sm: 'w-40 h-28 text-xs p-3',
+    compact: 'w-40 h-52 text-xs p-3',
     md: 'w-52 h-72 text-sm p-4',
     lg: 'w-64 h-96 text-base p-6',
   };
@@ -44,8 +46,20 @@ export default function Card({
     >
       {revealed ? (
         <>
-          <span className="font-bold leading-snug">{card.text}</span>
-          {isBlack && card.pickCount > 1 && (
+          {card.isBlank ? (
+            <div className="flex flex-col items-center justify-center gap-2 h-full w-full">
+              <PenLine size={24} className={isBlack ? 'text-white/40' : 'text-black/40'} />
+              <span className={`text-xs font-bold uppercase tracking-wider ${isBlack ? 'text-white/40' : 'text-black/40'}`}>
+                Blank Card
+              </span>
+              <span className={`text-[10px] ${isBlack ? 'text-white/30' : 'text-black/30'}`}>
+                Write your own answer
+              </span>
+            </div>
+          ) : (
+            <span className="font-bold leading-snug">{card.text}</span>
+          )}
+          {isBlack && card.pickCount != null && card.pickCount > 1 && (
             <span className="text-xs opacity-60 mt-2">Pick {card.pickCount}</span>
           )}
           <span className={`text-[10px] font-bold uppercase tracking-wider mt-auto ${isBlack ? 'text-white/40' : 'text-black/40'}`}>

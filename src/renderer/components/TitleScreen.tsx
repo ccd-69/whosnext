@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Zap, Clock, Users, ArrowRight, Sparkles } from 'lucide-react';
+import { playClick, playHover } from '../audio/sound.js';
 
 export default function TitleScreen() {
   const navigate = useNavigate();
@@ -31,8 +32,8 @@ export default function TitleScreen() {
         {/* Game Mode Cards */}
         <div className="flex flex-col sm:flex-row gap-4 w-full">
           <button
-            onClick={() => navigate('/lobby/quick-play')}
-            onMouseEnter={() => setHovered('quick-play')}
+            onClick={() => { playClick(); navigate('/lobby/quick-play'); }}
+            onMouseEnter={() => { setHovered('quick-play'); playHover(); }}
             onMouseLeave={() => setHovered(null)}
             className={`flex-1 glass-card p-6 text-left transition-all duration-300 hover:border-accent/50 hover:bg-surface-light/80 ${
               hovered === 'quick-play' ? 'scale-[1.02] shadow-xl shadow-accent/20' : ''
@@ -61,8 +62,8 @@ export default function TitleScreen() {
           </button>
 
           <button
-            onClick={() => navigate('/lobby/whos-next')}
-            onMouseEnter={() => setHovered('whos-next')}
+            onClick={() => { playClick(); navigate('/lobby/whos-next'); }}
+            onMouseEnter={() => { setHovered('whos-next'); playHover(); }}
             onMouseLeave={() => setHovered(null)}
             className={`flex-1 glass-card p-6 text-left transition-all duration-300 hover:border-purple-500/50 hover:bg-surface-light/80 ${
               hovered === 'whos-next' ? 'scale-[1.02] shadow-xl shadow-purple-500/20' : ''

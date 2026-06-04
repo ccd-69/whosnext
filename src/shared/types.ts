@@ -9,6 +9,7 @@ export interface Player {
   isConnected: boolean;
   cards: Card[];
   submittedCardId?: string;
+  blankCardsRemaining: number;
 }
 
 export interface Card {
@@ -16,19 +17,10 @@ export interface Card {
   text: string;
   type: 'black' | 'white';
   pickCount?: number; // for black cards: how many white cards to play
+  isBlank?: boolean;  // for white cards: player can type custom text
 }
 
-export type GamePhase =
-  | 'lobby'
-  | 'dealing'
-  | 'playing'
-  | 'judging'
-  | 'reveal'
-  | 'scoring'
-  | 'round-end'
-  | 'game-over';
-
-export type GameMode = 'quick-play' | 'whos-next';
+export type CardPack = 'base' | 'nsfw' | 'dark' | 'absurd';
 
 export interface Room {
   id: string;
@@ -38,12 +30,14 @@ export interface Room {
   phase: GamePhase;
   players: Player[];
   blackCard?: Card;
-  submittedCards: { playerId: string; card: Card }[];
+  submittedCards: { playerId: string; cards: Card[] }[];
   judgeId?: string;
   round: number;
   maxRounds: number;
   maxPlayers: number;
   winningScore: number;
+  blankCardsEnabled: boolean;
+  cardPacks: CardPack[];
   createdAt: number;
   updatedAt: number;
 }
@@ -61,7 +55,7 @@ export interface ServerToClientEvents {
   'player-left': (playerId: string) => void;
   'phase-change': (phase: GamePhase) => void;
   'card-played': (playerId: string) => void;
-  'judge-picked': (winnerId: string, winningCard: Card) => void;
+  'judge-picked': (winnerId: string, winningCards: Card[]) => void;
   'round-start': (blackCard: Card, judgeId: string) => void;
   'round-end': (scores: Record<string, number>) => void;
   'game-over': (finalScores: Record<string, number>, winnerId: string) => void;
@@ -69,11 +63,27 @@ export interface ServerToClientEvents {
   'notification': (message: string) => void;
 }
 
+export interface CardPlay {
+  cardId: string;
+  customText?: string;
+}
+
 export interface ClientToServerEvents {
-  'create-room': (opts: { name: string; mode: GameMode; maxPlayers: number; maxRounds: number }, cb: (room: Room) => void) => void;
+  'create-room': (
+    opts: {
+      name: string;
+      hostName: string;
+      mode: GameMode;
+      maxPlayers: number;
+      maxRounds: number;
+      blankCardsEnabled: boolean;
+      cardPacks: CardPack[];
+    },
+    cb: (room: Room) => void
+  ) => void;
   'join-room': (code: string, playerName: string, cb: (room: Room | null) => void) => void;
   'start-game': () => void;
-  'play-card': (cardId: string, cb: (success: boolean) => void) => void;
+  'play-card': (cards: CardPlay[], cb: (success: boolean) => void) => void;
   'judge-pick': (playerId: string, cb: (success: boolean) => void) => void;
   'leave-room': () => void;
   'kick-player': (playerId: string) => void;

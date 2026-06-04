@@ -48,6 +48,7 @@ io.on('connection', (socket) => {
         socket.data.playerId = player.id;
         socket.data.roomId = room.id;
       }
+      roomManager.broadcastState(room);
       socket.to(room.id).emit('player-joined', player!);
       cb(room);
     } else {
@@ -61,11 +62,11 @@ io.on('connection', (socket) => {
     roomManager.startGame(roomId);
   });
 
-  socket.on('play-card', (cardId, cb) => {
+  socket.on('play-card', (cardIds, cb) => {
     const roomId = socket.data.roomId;
     const playerId = socket.data.playerId;
     if (!roomId || !playerId) return cb(false);
-    cb(roomManager.playCard(roomId, playerId, cardId));
+    cb(roomManager.playCard(roomId, playerId, cardIds));
   });
 
   socket.on('judge-pick', (winnerId, cb) => {
@@ -79,6 +80,17 @@ io.on('connection', (socket) => {
     const roomId = socket.data.roomId;
     if (!roomId) return;
     roomManager.nextRound(roomId);
+  });
+
+  socket.on('leave-room', () => {
+    const roomId = socket.data.roomId;
+    const playerId = socket.data.playerId;
+    if (roomId && playerId) {
+      roomManager.removePlayer(roomId, playerId);
+      socket.leave(roomId);
+      socket.data.roomId = '';
+      socket.data.playerId = '';
+    }
   });
 
   socket.on('disconnect', () => {

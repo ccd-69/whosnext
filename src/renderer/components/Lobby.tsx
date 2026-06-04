@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useSocket } from '../hooks/useSocket';
-import { ArrowLeft, Copy, Users, Play, DoorOpen } from 'lucide-react';
-import type { Room, GameMode } from '../../shared/types';
+import { useSocket } from '../hooks/useSocket.js';
+import { ArrowLeft, Copy, Users, Play, DoorOpen, Settings, Skull, Laugh, Flame } from 'lucide-react';
+import { playClick, playChime, playJoin } from '../audio/sound.js';
+import type { Room, GameMode, Player, GameState, CardPack } from '../../shared/types.js';
 
 export default function Lobby() {
   const { mode } = useParams<{ mode: GameMode }>();
@@ -15,31 +16,51 @@ export default function Lobby() {
   const [room, setRoom] = useState<Room | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [maxPlayers, setMaxPlayers] = useState(8);
+  const [maxRounds, setMaxRounds] = useState(mode === 'quick-play' ? 10 : 20);
+  const [blankCardsEnabled, setBlankCardsEnabled] = useState(false);
+  const [cardPacks, setCardPacks] = useState<CardPack[]>(['base']);
+  const [showSettings, setShowSettings] = useState(false);
 
   const isHost = step === 'host';
+
+  useEffect(() => {
+    if (!connected || step !== 'host') return;
+    const unsubState = on('game-state', (state: GameState) => {
+      setRoom(state.room);
+    });
+    const unsubJoin = on('player-joined', () => {
+      playJoin();
+    });
+    return () => {
+      unsubState();
+      unsubJoin();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, step, on]);
 
   function handleCreateRoom() {
     if (!playerName.trim() || !roomName.trim()) return;
     setError('');
+    playClick();
     emit('create-room', {
       name: roomName,
+      hostName: playerName,
       mode: mode || 'quick-play',
-      maxPlayers: 8,
-      maxRounds: mode === 'quick-play' ? 10 : 20,
+      maxPlayers,
+      maxRounds,
+      blankCardsEnabled,
+      cardPacks,
     }, (newRoom: Room) => {
       setRoom(newRoom);
       setStep('host');
-
-      // Listen for players joining
-      on('player-joined', () => {
-        // Refresh room state
-      });
     });
   }
 
   function handleJoinRoom() {
     if (!playerName.trim() || !roomCode.trim()) return;
     setError('');
+    playClick();
     emit('join-room', roomCode.toUpperCase(), playerName, (joinedRoom: Room | null) => {
       if (joinedRoom) {
         setRoom(joinedRoom);
@@ -51,6 +72,7 @@ export default function Lobby() {
   }
 
   function handleStartGame() {
+    playChime();
     emit('start-game');
     if (room) {
       navigate(`/game/${room.code}`);
@@ -81,7 +103,11 @@ export default function Lobby() {
       <div className="flex h-full flex-col items-center justify-center px-4">
         <div className="glass-card p-8 max-w-md w-full flex flex-col gap-6 animate-slide-up">
           <button
-            onClick={() => setStep('form')}
+            onClick={() => {
+              emit('leave-room');
+              setStep('form');
+              setRoom(null);
+            }}
             className="flex items-center gap-2 text-white/60 hover:text-white transition-colors self-start"
           >
             <ArrowLeft size={18} />
@@ -107,8 +133,20 @@ export default function Lobby() {
             <span>{room.players.length} / {room.maxPlayers} players</span>
           </div>
 
+          {/* Customization Info */}
+          <div className="glass-card p-3 flex flex-col gap-2">
+            <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Settings</div>
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-surface-light text-white/70">Rounds: {room.maxRounds}</span>
+              {room.blankCardsEnabled && <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">Blank Cards</span>}
+              {room.cardPacks.map((pack) => (
+                <span key={pack} className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent capitalize">{pack}</span>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-col gap-2">
-            {room.players.map((p) => (
+            {room.players.map((p: Player) => (
               <div key={p.id} className="flex items-center gap-3 bg-surface-light rounded-lg px-4 py-2">
                 <div className={`w-2 h-2 rounded-full ${p.isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
                 <span className="font-semibold">{p.name} {p.isHost && <span className="text-accent text-xs">(Host)</span>}</span>
@@ -133,7 +171,10 @@ export default function Lobby() {
     <div className="flex h-full flex-col items-center justify-center px-4">
       <div className="glass-card p-8 max-w-md w-full flex flex-col gap-6 animate-slide-up">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => {
+            emit('leave-room');
+            navigate('/');
+          }}
           className="flex items-center gap-2 text-white/60 hover:text-white transition-colors self-start"
         >
           <ArrowLeft size={18} />
@@ -167,6 +208,102 @@ export default function Lobby() {
                 className="bg-surface-light border border-border rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors"
               />
             </div>
+
+            {/* Customization Toggle */}
+            <button
+              onClick={() => { playClick(); setShowSettings(!showSettings); }}
+              className="flex items-center gap-2 text-sm text-accent hover:text-accent/80 transition-colors self-start"
+            >
+              <Settings size={16} />
+              {showSettings ? 'Hide' : 'Show'} Game Settings
+            </button>
+
+            {showSettings && (
+              <div className="flex flex-col gap-4 bg-surface-light rounded-xl p-4">
+                {/* Player Count */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-sm text-white/60">
+                    <label>Max Players</label>
+                    <span className="font-bold text-white">{maxPlayers}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={3}
+                    max={16}
+                    value={maxPlayers}
+                    onChange={(e) => setMaxPlayers(parseInt(e.target.value))}
+                    className="accent-accent w-full"
+                  />
+                </div>
+
+                {/* Round Count */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-sm text-white/60">
+                    <label>Max Rounds</label>
+                    <span className="font-bold text-white">{maxRounds}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={3}
+                    max={30}
+                    value={maxRounds}
+                    onChange={(e) => setMaxRounds(parseInt(e.target.value))}
+                    className="accent-accent w-full"
+                  />
+                </div>
+
+                {/* Blank Cards */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={blankCardsEnabled}
+                    onChange={(e) => setBlankCardsEnabled(e.target.checked)}
+                    className="accent-accent w-4 h-4"
+                  />
+                  <span className="text-sm text-white/80">Enable Blank Cards (custom answers)</span>
+                </label>
+
+                {/* Card Packs */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-sm text-white/60">Card Packs</span>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: 'base' as CardPack, label: 'Base', icon: <Laugh size={14} />, color: 'bg-blue-500/20 text-blue-400' },
+                      { key: 'nsfw' as CardPack, label: 'NSFW', icon: <Flame size={14} />, color: 'bg-pink-500/20 text-pink-400' },
+                      { key: 'dark' as CardPack, label: 'Dark', icon: <Skull size={14} />, color: 'bg-red-500/20 text-red-400' },
+                      { key: 'absurd' as CardPack, label: 'Absurd', icon: <Settings size={14} />, color: 'bg-purple-500/20 text-purple-400' },
+                    ].map((pack) => (
+                      <label
+                        key={pack.key}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer transition-all border ${
+                          cardPacks.includes(pack.key)
+                            ? 'border-accent bg-accent/10'
+                            : 'border-border bg-transparent opacity-60'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={cardPacks.includes(pack.key)}
+                          onChange={() => {
+                            setCardPacks((prev) =>
+                              prev.includes(pack.key)
+                                ? pack.key === 'base' && prev.length === 1
+                                  ? prev
+                                  : prev.filter((p) => p !== pack.key)
+                                : [...prev, pack.key]
+                            );
+                          }}
+                          className="hidden"
+                        />
+                        {pack.icon}
+                        <span className="text-xs font-semibold">{pack.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button
               onClick={handleCreateRoom}
               disabled={!playerName.trim() || !roomName.trim()}
@@ -180,7 +317,7 @@ export default function Lobby() {
               <div className="flex-1 h-px bg-border" />
             </div>
             <button
-              onClick={() => setStep('join')}
+              onClick={() => { playClick(); setStep('join'); }}
               className="btn-secondary"
             >
               <DoorOpen size={18} />
@@ -208,7 +345,7 @@ export default function Lobby() {
               Join Game
             </button>
             <button
-              onClick={() => setStep('form')}
+              onClick={() => { playClick(); setStep('form'); }}
               className="btn-secondary"
             >
               Create a Room Instead
