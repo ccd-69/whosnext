@@ -1,0 +1,86 @@
+import { Card } from './types.js';
+
+export const DEFAULT_BLACK_CARDS: Card[] = [
+  { id: 'b1', text: 'Why can\'t I sleep at night?', type: 'black', pickCount: 1 },
+  { id: 'b2', text: 'What\'s that smell?', type: 'black', pickCount: 1 },
+  { id: 'b3', text: 'I got 99 problems but _____ ain\'t one.', type: 'black', pickCount: 1 },
+  { id: 'b4', text: 'Maybe she\'s born with it. Maybe it\'s _____.', type: 'black', pickCount: 1 },
+  { id: 'b5', text: 'What\'s the next Happy Meal toy?', type: 'black', pickCount: 1 },
+  { id: 'b6', text: '_____. It\'s a trap!', type: 'black', pickCount: 1 },
+  { id: 'b7', text: 'The class field trip was completely ruined by _____.', type: 'black', pickCount: 1 },
+  { id: 'b8', text: 'What\'s my secret power?', type: 'black', pickCount: 1 },
+  { id: 'b9', text: 'What ended my last relationship?', type: 'black', pickCount: 1 },
+  { id: 'b10', text: 'MTV\'s newest reality show features eight washed-up celebrities living with _____.', type: 'black', pickCount: 1 },
+  { id: 'b11', text: 'I drink to forget _____.', type: 'black', pickCount: 1 },
+  { id: 'b12', text: 'I\'m sorry, Professor, but I couldn\'t complete my homework because of _____.', type: 'black', pickCount: 1 },
+  { id: 'b13', text: 'What is Batman\'s guilty pleasure?', type: 'black', pickCount: 1 },
+  { id: 'b14', text: 'This is the way the world ends. Not with a bang but with _____.', type: 'black', pickCount: 1 },
+  { id: 'b15', text: 'What\'s a girl\'s best friend?', type: 'black', pickCount: 1 },
+  { id: 'b16', text: 'TSA guidelines now prohibit _____ on airplanes.', type: 'black', pickCount: 1 },
+  { id: 'b17', text: '_____. That\'s how I want to die.', type: 'black', pickCount: 1 },
+  { id: 'b18', text: 'For my next trick, I will pull _____ out of _____.', type: 'black', pickCount: 2 },
+  { id: 'b19', text: 'In M. Night Shyamalan\'s new movie, Bruce Willis discovers that _____ had really been _____ all along.', type: 'black', pickCount: 2 },
+  { id: 'b20', text: '_____ is a slippery slope that leads to _____.', type: 'black', pickCount: 2 },
+];
+
+export const DEFAULT_WHITE_CARDS: Card[] = [
+  { id: 'w1', text: 'Coat hanger abortions', type: 'white' },
+  { id: 'w2', text: 'Man meat', type: 'white' },
+  { id: 'w3', text: 'Autocannibalism', type: 'white' },
+  { id: 'w4', text: 'Vigorous jazz hands', type: 'white' },
+  { id: 'w5', text: 'Flightless birds', type: 'white' },
+  { id: 'w6', text: 'Pictures of boobs', type: 'white' },
+  { id: 'w7', text: 'Doing the right thing', type: 'white' },
+  { id: 'w8', text: 'The violation of our most basic human rights', type: 'white' },
+  { id: 'w9', text: 'Viagra', type: 'white' },
+  { id: 'w10', text: 'Self-loathing', type: 'white' },
+  { id: 'w11', text: 'A sad handjob', type: 'white' },
+  { id: 'w12', text: 'Spectacular abs', type: 'white' },
+  { id: 'w13', text: 'A really cool hat', type: 'white' },
+  { id: 'w14', text: 'Poor life choices', type: 'white' },
+  { id: 'w15', text: 'My relationship status', type: 'white' },
+  { id: 'w16', text: 'The Russians', type: 'white' },
+  { id: 'w17', text: 'Auschwitz', type: 'white' },
+  { id: 'w18', text: 'The Hustle', type: 'white' },
+  { id: 'w19', text: 'The placenta', type: 'white' },
+  { id: 'w20', text: 'My sex life', type: 'white' },
+  { id: 'w21', text: 'Oprah', type: 'white' },
+  { id: 'w22', text: 'Vehicular manslaughter', type: 'white' },
+  { id: 'w23', text: 'Puppies!', type: 'white' },
+  { id: 'w24', text: 'Saxophone solos', type: 'white' },
+  { id: 'w25', text: 'Terry Fox\'s prosthetic leg', type: 'white' },
+  { id: 'w26', text: 'The penny whistle solo from "My Heart Will Go On"', type: 'white' },
+  { id: 'w27', text: 'A time travel paradox', type: 'white' },
+  { id: 'w28', text: 'The true meaning of Christmas', type: 'white' },
+  { id: 'w29', text: 'Her Majesty, Queen Elizabeth II', type: 'white' },
+  { id: 'w30', text: 'Funky fresh rhymes', type: 'white' },
+  { id: 'w31', text: 'The Big Bang', type: 'white' },
+  { id: 'w32', text: 'An M. Night Shyamalan plot twist', type: 'white' },
+  { id: 'w33', text: 'Eating the last known bison', type: 'white' },
+  { id: 'w34', text: 'Shiny objects', type: 'white' },
+  { id: 'w35', text: 'Consensual sex', type: 'white' },
+  { id: 'w36', text: 'World peace', type: 'white' },
+  { id: 'w37', text: 'A zesty breakfast burrito', type: 'white' },
+  { id: 'w38', text: 'MechaHitler', type: 'white' },
+  { id: 'w39', text: 'Donald Trump', type: 'white' },
+  { id: 'w40', text: 'A can of whoop-ass', type: 'white' },
+  { id: 'w41', text: 'The violation of our most basic human rights', type: 'white' },
+  { id: 'w42', text: 'Flying sex snakes', type: 'white' },
+  { id: 'w43', text: 'The Amish', type: 'white' },
+  { id: 'w44', text: 'The Blood of Christ', type: 'white' },
+  { id: 'w45', text: 'The Care Bear Stare', type: 'white' },
+  { id: 'w46', text: 'Dead parents', type: 'white' },
+  { id: 'w47', text: 'The Rev. Dr. Martin Luther King, Jr.', type: 'white' },
+  { id: 'w48', text: 'Famine', type: 'white' },
+  { id: 'w49', text: 'Father\'s disappointment', type: 'white' },
+  { id: 'w50', text: 'AXE Body Spray', type: 'white' },
+];
+
+export function shuffleArray<T>(arr: T[]): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}

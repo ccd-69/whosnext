@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Outfit', system-ui, sans-serif;
+    background: #0a0a0f;
+    color: #ffffff;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #27273a transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #27273a;
+    border-radius: 3px;
+  }
+}
+
+@layer components {
+  .glass-card {
+    background: rgba(19, 19, 31, 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(39, 39, 58, 0.6);
+    border-radius: 16px;
+  }
+
+  .btn-primary {
+    @apply bg-accent text-white font-bold px-6 py-3 rounded-xl
+           transition-all duration-200 hover:bg-accent-hover
+           active:scale-95 shadow-lg shadow-accent/25;
+  }
+
+  .btn-secondary {
+    @apply bg-surface-light text-white font-semibold px-6 py-3 rounded-xl
+           transition-all duration-200 hover:bg-surface-light/80
+           active:scale-95 border border-border;
+  }
+
+  .card-white {
+    @apply bg-white text-black p-4 rounded-xl shadow-lg
+           font-bold text-sm leading-tight
+           transition-all duration-200 hover:-translate-y-1 hover:shadow-xl;
+  }
+
+  .card-black {
+    @apply bg-black text-white p-4 rounded-xl shadow-lg
+           font-bold text-sm leading-tight border border-white/20;
+  }
+}
