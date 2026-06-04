@@ -20,6 +20,7 @@ export default function Lobby() {
   const [maxRounds, setMaxRounds] = useState(mode === 'quick-play' ? 10 : 20);
   const [blankCardsEnabled, setBlankCardsEnabled] = useState(false);
   const [cardPacks, setCardPacks] = useState<CardPack[]>(['base']);
+  const [buffsEnabled, setBuffsEnabled] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
   const isHost = step === 'host';
@@ -51,6 +52,7 @@ export default function Lobby() {
       maxRounds,
       blankCardsEnabled,
       cardPacks,
+      buffsEnabled,
     }, (newRoom: Room) => {
       setRoom(newRoom);
       setStep('host');
@@ -139,6 +141,7 @@ export default function Lobby() {
             <div className="flex flex-wrap gap-1.5">
               <span className="text-xs px-2 py-0.5 rounded-full bg-surface-light text-white/70">Rounds: {room.maxRounds}</span>
               {room.blankCardsEnabled && <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">Blank Cards</span>}
+              {room.buffsEnabled && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">Buffs</span>}
               {room.cardPacks.map((pack) => (
                 <span key={pack} className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent capitalize">{pack}</span>
               ))}
@@ -261,6 +264,17 @@ export default function Lobby() {
                     className="accent-accent w-4 h-4"
                   />
                   <span className="text-sm text-white/80">Enable Blank Cards (custom answers)</span>
+                </label>
+
+                {/* Buffs / Debuffs */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={buffsEnabled}
+                    onChange={(e) => setBuffsEnabled(e.target.checked)}
+                    className="accent-accent w-4 h-4"
+                  />
+                  <span className="text-sm text-white/80">Enable Buffs & Debuffs (random round effects)</span>
                 </label>
 
                 {/* Card Packs */}

@@ -1,4 +1,4 @@
-import { Room, Player, GameMode, GamePhase, Card, CardPlay } from '../shared/types.js';
+import { Room, Player, GameMode, GamePhase, Card, CardPlay, Buff, BuffType } from '../shared/types.js';
 import { getCardsForPacks, shuffleArray } from '../shared/deck.js';
 import type { Server as SocketIOServer } from 'socket.io';
 import type { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from '../shared/types.js';
@@ -37,6 +37,7 @@ export class RoomManager {
       maxRounds: number;
       blankCardsEnabled: boolean;
       cardPacks: import('../shared/types.js').CardPack[];
+      buffsEnabled: boolean;
     },
     hostSocketId: string
   ): Room {
@@ -50,6 +51,7 @@ export class RoomManager {
       isConnected: true,
       cards: [],
       blankCardsRemaining: opts.blankCardsEnabled ? 3 : 0,
+      activeBuffs: [],
     };
     const room: Room = {
       id: roomId,
@@ -65,6 +67,7 @@ export class RoomManager {
       winningScore: opts.mode === 'quick-play' ? 7 : 5,
       blankCardsEnabled: opts.blankCardsEnabled,
       cardPacks: opts.cardPacks,
+      buffsEnabled: opts.buffsEnabled,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -96,6 +99,7 @@ export class RoomManager {
       isConnected: true,
       cards: [],
       blankCardsRemaining: room.blankCardsEnabled ? 3 : 0,
+      activeBuffs: [],
     };
     room.players.push(player);
     room.updatedAt = Date.now();
@@ -108,9 +112,10 @@ export class RoomManager {
     if (!room || room.players.length < 3) return;
     room.phase = 'dealing';
     room.round = 1;
-    // Reset blank cards per game
+    // Reset per-game counters and buffs
     for (const p of room.players) {
       p.blankCardsRemaining = room.blankCardsEnabled ? 3 : 0;
+      p.activeBuffs = [];
     }
     this.dealCards(room);
     this.startRound(room);
@@ -119,8 +124,9 @@ export class RoomManager {
   private dealCards(room: Room): void {
     const deck = this.decks.get(room.id);
     if (!deck) return;
-    const cardsPerPlayer = 10;
     for (const player of room.players) {
+      const hasExtraCard = player.activeBuffs.some((b) => b.type === 'extra_card');
+      const cardsPerPlayer = hasExtraCard ? 12 : 10;
       while (player.cards.length < cardsPerPlayer) {
         if (deck.whiteDeck.length === 0) {
           if (deck.whiteDiscard.length === 0) {
@@ -140,9 +146,73 @@ export class RoomManager {
     }
   }
 
+  private tickBuffs(room: Room): void {
+    if (!room.buffsEnabled) return;
+    for (const p of room.players) {
+      p.activeBuffs = p.activeBuffs.filter((b) => {
+        b.roundsRemaining -= 1;
+        return b.roundsRemaining > 0;
+      });
+    }
+  }
+
+  private assignRandomBuff(room: Room): void {
+    if (!room.buffsEnabled || room.players.length < 2) return;
+    const buffTypes: BuffType[] = ['double_points', 'extra_card', 'steal_card', 'silence', 'point_tax', 'reveal_all', 'hand_swap'];
+    const type = buffTypes[Math.floor(Math.random() * buffTypes.length)];
+    const fromIdx = Math.floor(Math.random() * room.players.length);
+    const from = room.players[fromIdx];
+    let target = room.players[Math.floor(Math.random() * room.players.length)];
+    while (target.id === from.id && room.players.length > 1) {
+      target = room.players[Math.floor(Math.random() * room.players.length)];
+    }
+    const buff: Buff = {
+      id: crypto.randomUUID(),
+      type,
+      roundsRemaining: 1,
+      fromPlayerId: from.id,
+      targetPlayerId: target.id,
+    };
+    target.activeBuffs.push(buff);
+    this.io.to(room.id).emit('notification', `${from.name} put ${type.replace(/_/g, ' ')} on ${target.name}!`);
+  }
+
+  private applyPreRoundBuffs(room: Room, deck: DeckState): void {
+    if (!room.buffsEnabled) return;
+    for (const p of room.players) {
+      for (const buff of p.activeBuffs) {
+        if (buff.type === 'extra_card') {
+          // Draw 2 extra cards (dealt by dealCards later, just log)
+          this.io.to(p.socketId).emit('notification', 'Extra Card: your hand is +2 this round!');
+        }
+        if (buff.type === 'hand_swap' && buff.targetPlayerId === p.id) {
+          const from = room.players.find((pl) => pl.id === buff.fromPlayerId);
+          if (from) {
+            const temp = [...p.cards];
+            p.cards = [...from.cards];
+            from.cards = temp;
+            this.io.to(room.id).emit('notification', `${p.name} and ${from.name} swapped hands!`);
+          }
+        }
+        if (buff.type === 'steal_card' && buff.targetPlayerId === p.id) {
+          const from = room.players.find((pl) => pl.id === buff.fromPlayerId);
+          if (from && from.cards.length > 0) {
+            const stolenIdx = Math.floor(Math.random() * from.cards.length);
+            const stolen = from.cards.splice(stolenIdx, 1)[0];
+            p.cards.push(stolen);
+            this.io.to(room.id).emit('notification', `${p.name} stole a card from ${from.name}!`);
+          }
+        }
+      }
+    }
+  }
+
   private startRound(room: Room): void {
     const deck = this.decks.get(room.id);
     if (!deck) return;
+
+    // Tick down buff durations
+    this.tickBuffs(room);
 
     // Discard previous round cards
     if (room.blackCard) {
@@ -171,6 +241,12 @@ export class RoomManager {
     // Replenish white cards for all players
     this.dealCards(room);
 
+    // Apply pre-round buffs (hand_swap, steal_card, extra_card announcements)
+    this.applyPreRoundBuffs(room, deck);
+
+    // Assign new random buff for this round
+    this.assignRandomBuff(room);
+
     // Judge rotates: round 1 = player 0, round 2 = player 1, etc.
     const judgeIndex = (room.round - 1) % room.players.length;
     room.judgeId = room.players[judgeIndex].id;
@@ -187,6 +263,12 @@ export class RoomManager {
 
     const player = room.players.find((p) => p.id === playerId);
     if (!player) return false;
+
+    // Silence debuff: player cannot play this round
+    if (player.activeBuffs.some((b) => b.type === 'silence')) {
+      this.io.to(player.socketId).emit('error', 'You are silenced this round and cannot play a card!');
+      return false;
+    }
 
     const pickCount = room.blackCard?.pickCount || 1;
     if (cards.length !== pickCount) return false;
@@ -235,8 +317,27 @@ export class RoomManager {
     const winner = room.players.find((p) => p.id === winnerId);
     if (!winner) return false;
 
-    winner.score += 1;
+    let pointsAwarded = 1;
+
+    // double_points buff
+    if (winner.activeBuffs.some((b) => b.type === 'double_points')) {
+      pointsAwarded = 2;
+      this.io.to(room.id).emit('notification', `${winner.name} scored double points! (+2)`);
+    }
+
+    winner.score += pointsAwarded;
     room.phase = 'reveal';
+
+    // point_tax debuff: winner gives 1 point to lowest scorer
+    const taxBuff = winner.activeBuffs.find((b) => b.type === 'point_tax');
+    if (taxBuff) {
+      const lowest = room.players.reduce((a, b) => (a.score < b.score ? a : b));
+      if (lowest.id !== winner.id) {
+        winner.score -= 1;
+        lowest.score += 1;
+        this.io.to(room.id).emit('notification', `${winner.name} paid point tax to ${lowest.name}!`);
+      }
+    }
 
     const winningCards = room.submittedCards.find((s) => s.playerId === winnerId)?.cards || room.submittedCards[0].cards;
     this.io.to(room.id).emit('judge-picked', winnerId, winningCards);
@@ -293,6 +394,7 @@ export class RoomManager {
       p.cards = [];
       p.submittedCardId = undefined;
       p.blankCardsRemaining = room.blankCardsEnabled ? 3 : 0;
+      p.activeBuffs = [];
     });
     const deck = this.decks.get(room.id);
     if (deck) {

@@ -10,6 +10,7 @@ export interface Player {
   cards: Card[];
   submittedCardId?: string;
   blankCardsRemaining: number;
+  activeBuffs: Buff[];
 }
 
 export interface Card {
@@ -21,6 +22,23 @@ export interface Card {
 }
 
 export type CardPack = 'base' | 'nsfw' | 'dark' | 'absurd';
+
+export type BuffType =
+  | 'double_points'
+  | 'extra_card'
+  | 'steal_card'
+  | 'silence'
+  | 'point_tax'
+  | 'reveal_all'
+  | 'hand_swap';
+
+export interface Buff {
+  id: string;
+  type: BuffType;
+  roundsRemaining: number;
+  fromPlayerId: string;
+  targetPlayerId: string;
+}
 
 export interface Room {
   id: string;
@@ -38,6 +56,7 @@ export interface Room {
   winningScore: number;
   blankCardsEnabled: boolean;
   cardPacks: CardPack[];
+  buffsEnabled: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -78,6 +97,7 @@ export interface ClientToServerEvents {
       maxRounds: number;
       blankCardsEnabled: boolean;
       cardPacks: CardPack[];
+      buffsEnabled: boolean;
     },
     cb: (room: Room) => void
   ) => void;

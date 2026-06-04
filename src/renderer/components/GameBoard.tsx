@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../hooks/useSocket.js';
 import Card from './Card.js';
 import type { GameState, GamePhase, Player, Card as CardType, CardPlay } from '../../shared/types.js';
-import { ArrowLeft, Trophy, Clock, User, CheckCircle, Crown, Settings, PenLine } from 'lucide-react';
+import { ArrowLeft, Trophy, Clock, User, CheckCircle, Crown, Settings, PenLine, Zap, Eye, Ban, Shuffle, Plus, Minus } from 'lucide-react';
 import { playClick, playSubmit, playChime, playWin, playError, playJoin } from '../audio/sound.js';
 
 export default function GameBoard() {
@@ -137,6 +137,7 @@ export default function GameBoard() {
         ? room.maxPlayers === 8 && room.maxRounds === 10 && room.winningScore === 7
         : room.maxPlayers === 8 && room.maxRounds === 20 && room.winningScore === 5)
       && !room.blankCardsEnabled
+      && !room.buffsEnabled
       && room.cardPacks.length === 1
       && room.cardPacks[0] === 'base'
     : false;
@@ -167,6 +168,7 @@ export default function GameBoard() {
             <span>Rounds: {room.maxRounds}</span>
             <span>Win: {room.winningScore} pts</span>
             {room.blankCardsEnabled && <span>Blank Cards: On</span>}
+            {room.buffsEnabled && <span>Buffs: On</span>}
             <span>Packs: {room.cardPacks.join(', ')}</span>
           </div>
         )}
@@ -193,6 +195,24 @@ export default function GameBoard() {
                   {p.name}
                   {p.id === room.judgeId && <Crown size={12} className="inline text-accent ml-1" />}
                 </span>
+                {p.activeBuffs?.length > 0 && (
+                  <div className="flex gap-0.5">
+                    {p.activeBuffs.map((buff) => {
+                      const iconProps = { size: 10, className: 'text-yellow-400' };
+                      const icon = buff.type === 'double_points' ? <Zap {...iconProps} />
+                        : buff.type === 'silence' ? <Ban {...iconProps} />
+                        : buff.type === 'extra_card' ? <Plus {...iconProps} />
+                        : buff.type === 'reveal_all' ? <Eye {...iconProps} />
+                        : buff.type === 'hand_swap' ? <Shuffle {...iconProps} />
+                        : <Minus {...iconProps} />;
+                      return (
+                        <span key={buff.id} title={buff.type.replace(/_/g, ' ')} className="bg-yellow-500/10 rounded px-1">
+                          {icon}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               <span className="font-bold shrink-0">{p.score}</span>
             </div>
@@ -512,8 +532,31 @@ export default function GameBoard() {
 
               {phase === 'judging' && !isJudge && (
                 <div className="flex flex-col items-center gap-4">
-                  <div className="w-16 h-16 border-4 border-accent/20 border-t-accent rounded-full animate-spin" />
-                  <p className="text-white/60">Waiting for the judge to pick a winner...</p>
+                  {room.players.some((p: Player) => p.activeBuffs?.some((b) => b.type === 'reveal_all')) ? (
+                    <div className="flex flex-col items-center gap-4 animate-bounce-in">
+                      <p className="text-accent font-bold text-sm">Reveal All: Everyone can see the cards!</p>
+                      <div className="flex flex-wrap justify-center gap-4">
+                        {submittedCards.map((sub: { playerId: string; cards: CardType[] }) => {
+                          const player = room.players.find((p: Player) => p.id === sub.playerId);
+                          return (
+                            <div key={sub.playerId} className="flex flex-col items-center gap-1 opacity-70">
+                              <div className="flex gap-2">
+                                {sub.cards.map((c) => (
+                                  <Card key={c.id} card={c} size="sm" />
+                                ))}
+                              </div>
+                              <span className="text-[10px] text-white/40">{player?.name || 'Unknown'}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="w-16 h-16 border-4 border-accent/20 border-t-accent rounded-full animate-spin" />
+                      <p className="text-white/60">Waiting for the judge to pick a winner...</p>
+                    </>
+                  )}
                 </div>
               )}
 
