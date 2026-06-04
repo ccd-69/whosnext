@@ -51,7 +51,11 @@ export class RoomManager {
       isConnected: true,
       cards: [],
       blankCardsRemaining: opts.blankCardsEnabled ? 3 : 0,
-      activeBuffs: [],
+      abductionRounds: 0,
+      analProbeRounds: 0,
+      doublePointsHandRounds: 0,
+      cardQualityDownRounds: 0,
+      autoDrawEnabled: false,
     };
     const room: Room = {
       id: roomId,
@@ -73,7 +77,7 @@ export class RoomManager {
     };
     this.rooms.set(roomId, room);
 
-    const { blackCards, whiteCards } = getCardsForPacks(opts.cardPacks);
+    const { blackCards, whiteCards } = getCardsForPacks(opts.cardPacks, opts.buffsEnabled);
     this.decks.set(roomId, {
       whiteDeck: shuffleArray([...whiteCards]),
       blackDeck: shuffleArray([...blackCards]),
@@ -99,7 +103,11 @@ export class RoomManager {
       isConnected: true,
       cards: [],
       blankCardsRemaining: room.blankCardsEnabled ? 3 : 0,
-      activeBuffs: [],
+      abductionRounds: 0,
+      analProbeRounds: 0,
+      doublePointsHandRounds: 0,
+      cardQualityDownRounds: 0,
+      autoDrawEnabled: false,
     };
     room.players.push(player);
     room.updatedAt = Date.now();
@@ -115,7 +123,12 @@ export class RoomManager {
     // Reset per-game counters and buffs
     for (const p of room.players) {
       p.blankCardsRemaining = room.blankCardsEnabled ? 3 : 0;
-      p.activeBuffs = [];
+      p.abductionRounds = 0;
+      p.analProbeRounds = 0;
+      p.doublePointsHandRounds = 0;
+      p.cardQualityDownRounds = 0;
+      p.autoDrawEnabled = false;
+      p.forcedRandomCardId = undefined;
     }
     this.dealCards(room);
     this.startRound(room);
@@ -125,12 +138,17 @@ export class RoomManager {
     const deck = this.decks.get(room.id);
     if (!deck) return;
     for (const player of room.players) {
-      const hasExtraCard = player.activeBuffs.some((b) => b.type === 'extra_card');
-      const cardsPerPlayer = hasExtraCard ? 12 : 10;
+      // Abducted players get no cards
+      if (player.abductionRounds > 0) continue;
+
+      let cardsPerPlayer = 10;
+      if (player.analProbeRounds > 0) cardsPerPlayer = 15;
+      if (player.cardQualityDownRounds > 0) cardsPerPlayer = 5;
+
       while (player.cards.length < cardsPerPlayer) {
         if (deck.whiteDeck.length === 0) {
           if (deck.whiteDiscard.length === 0) {
-            const { whiteCards } = getCardsForPacks(room.cardPacks);
+            const { whiteCards } = getCardsForPacks(room.cardPacks, room.buffsEnabled);
             deck.whiteDeck = shuffleArray([...whiteCards]);
             deck.whiteDiscard = [];
           } else {
@@ -140,69 +158,17 @@ export class RoomManager {
         }
         const template = deck.whiteDeck.pop();
         if (!template) continue;
-        // Clone with a unique ID so no two players ever share the same card
         player.cards.push({ ...template, id: crypto.randomUUID() });
       }
-    }
-  }
 
-  private tickBuffs(room: Room): void {
-    if (!room.buffsEnabled) return;
-    for (const p of room.players) {
-      p.activeBuffs = p.activeBuffs.filter((b) => {
-        b.roundsRemaining -= 1;
-        return b.roundsRemaining > 0;
-      });
-    }
-  }
-
-  private assignRandomBuff(room: Room): void {
-    if (!room.buffsEnabled || room.players.length < 2) return;
-    const buffTypes: BuffType[] = ['double_points', 'extra_card', 'steal_card', 'silence', 'point_tax', 'reveal_all', 'hand_swap'];
-    const type = buffTypes[Math.floor(Math.random() * buffTypes.length)];
-    const fromIdx = Math.floor(Math.random() * room.players.length);
-    const from = room.players[fromIdx];
-    let target = room.players[Math.floor(Math.random() * room.players.length)];
-    while (target.id === from.id && room.players.length > 1) {
-      target = room.players[Math.floor(Math.random() * room.players.length)];
-    }
-    const buff: Buff = {
-      id: crypto.randomUUID(),
-      type,
-      roundsRemaining: 1,
-      fromPlayerId: from.id,
-      targetPlayerId: target.id,
-    };
-    target.activeBuffs.push(buff);
-    this.io.to(room.id).emit('notification', `${from.name} put ${type.replace(/_/g, ' ')} on ${target.name}!`);
-  }
-
-  private applyPreRoundBuffs(room: Room, deck: DeckState): void {
-    if (!room.buffsEnabled) return;
-    for (const p of room.players) {
-      for (const buff of p.activeBuffs) {
-        if (buff.type === 'extra_card') {
-          // Draw 2 extra cards (dealt by dealCards later, just log)
-          this.io.to(p.socketId).emit('notification', 'Extra Card: your hand is +2 this round!');
+      // Auto-draw: if down to 1 card, draw 3 more
+      if (player.autoDrawEnabled && player.cards.length <= 1) {
+        for (let i = 0; i < 3; i++) {
+          if (deck.whiteDeck.length === 0) break;
+          const template = deck.whiteDeck.pop();
+          if (template) player.cards.push({ ...template, id: crypto.randomUUID() });
         }
-        if (buff.type === 'hand_swap' && buff.targetPlayerId === p.id) {
-          const from = room.players.find((pl) => pl.id === buff.fromPlayerId);
-          if (from) {
-            const temp = [...p.cards];
-            p.cards = [...from.cards];
-            from.cards = temp;
-            this.io.to(room.id).emit('notification', `${p.name} and ${from.name} swapped hands!`);
-          }
-        }
-        if (buff.type === 'steal_card' && buff.targetPlayerId === p.id) {
-          const from = room.players.find((pl) => pl.id === buff.fromPlayerId);
-          if (from && from.cards.length > 0) {
-            const stolenIdx = Math.floor(Math.random() * from.cards.length);
-            const stolen = from.cards.splice(stolenIdx, 1)[0];
-            p.cards.push(stolen);
-            this.io.to(room.id).emit('notification', `${p.name} stole a card from ${from.name}!`);
-          }
-        }
+        this.io.to(player.socketId).emit('notification', 'Auto-draw: +3 cards!');
       }
     }
   }
@@ -210,9 +176,6 @@ export class RoomManager {
   private startRound(room: Room): void {
     const deck = this.decks.get(room.id);
     if (!deck) return;
-
-    // Tick down buff durations
-    this.tickBuffs(room);
 
     // Discard previous round cards
     if (room.blackCard) {
@@ -225,10 +188,25 @@ export class RoomManager {
     }
     room.submittedCards = [];
 
+    // Tick down persistent round counters
+    for (const p of room.players) {
+      if (p.abductionRounds > 0) {
+        p.abductionRounds -= 1;
+        if (p.abductionRounds === 0) {
+          p.analProbeRounds = 2;
+          this.io.to(room.id).emit('notification', `${p.name} returned from abduction with an anal probe! Extra cards for 2 rounds.`);
+        }
+      }
+      if (p.analProbeRounds > 0) p.analProbeRounds -= 1;
+      if (p.doublePointsHandRounds > 0) p.doublePointsHandRounds -= 1;
+      if (p.cardQualityDownRounds > 0) p.cardQualityDownRounds -= 1;
+      p.forcedRandomCardId = undefined;
+    }
+
     // Draw next black card
     if (deck.blackDeck.length === 0) {
       if (deck.blackDiscard.length === 0) {
-        const { blackCards } = getCardsForPacks(room.cardPacks);
+        const { blackCards } = getCardsForPacks(room.cardPacks, room.buffsEnabled);
         deck.blackDeck = shuffleArray([...blackCards]);
       } else {
         deck.blackDeck = shuffleArray(deck.blackDiscard);
@@ -241,15 +219,14 @@ export class RoomManager {
     // Replenish white cards for all players
     this.dealCards(room);
 
-    // Apply pre-round buffs (hand_swap, steal_card, extra_card announcements)
-    this.applyPreRoundBuffs(room, deck);
-
-    // Assign new random buff for this round
-    this.assignRandomBuff(room);
-
-    // Judge rotates: round 1 = player 0, round 2 = player 1, etc.
-    const judgeIndex = (room.round - 1) % room.players.length;
-    room.judgeId = room.players[judgeIndex].id;
+    // Judge rotation — skip abducted players
+    let attempts = 0;
+    let judgeIndex = (room.round - 1) % room.players.length;
+    while (room.players[judgeIndex]?.abductionRounds > 0 && attempts < room.players.length) {
+      judgeIndex = (judgeIndex + 1) % room.players.length;
+      attempts++;
+    }
+    room.judgeId = room.players[judgeIndex]?.id;
     room.phase = 'playing';
 
     this.broadcastState(room);
@@ -264,10 +241,29 @@ export class RoomManager {
     const player = room.players.find((p) => p.id === playerId);
     if (!player) return false;
 
-    // Silence debuff: player cannot play this round
-    if (player.activeBuffs.some((b) => b.type === 'silence')) {
-      this.io.to(player.socketId).emit('error', 'You are silenced this round and cannot play a card!');
+    // Abducted players cannot play
+    if (player.abductionRounds > 0) {
+      this.io.to(player.socketId).emit('error', 'You are abducted and cannot play this round!');
       return false;
+    }
+
+    // Forced random: player must submit their forced card instead
+    if (player.forcedRandomCardId) {
+      const forcedIndex = player.cards.findIndex((c) => c.id === player.forcedRandomCardId);
+      if (forcedIndex !== -1) {
+        const forcedCard = player.cards[forcedIndex];
+        player.cards.splice(forcedIndex, 1);
+        room.submittedCards.push({ playerId, cards: [forcedCard] });
+        this.io.to(room.id).emit('card-played', playerId);
+        this.io.to(room.id).emit('notification', `${player.name} was forced to play a random card!`);
+        const expectedSubmissions = room.players.filter((p) => p.id !== room.judgeId && p.abductionRounds === 0).length;
+        const uniqueSubmitters = new Set(room.submittedCards.map((s) => s.playerId)).size;
+        if (uniqueSubmitters >= expectedSubmissions) {
+          room.phase = 'judging';
+        }
+        this.broadcastState(room);
+        return true;
+      }
     }
 
     const pickCount = room.blackCard?.pickCount || 1;
@@ -276,7 +272,6 @@ export class RoomManager {
     const playedCards: Card[] = [];
     for (const play of cards) {
       if (play.cardId === '__blank__') {
-        // Blank card use
         if (player.blankCardsRemaining <= 0) return false;
         player.blankCardsRemaining -= 1;
         playedCards.push({
@@ -294,11 +289,113 @@ export class RoomManager {
       player.cards.splice(cardIndex, 1);
     }
 
+    // Process on-play card effects
+    for (const card of playedCards) {
+      if (!card.effect) continue;
+      switch (card.effect.type) {
+        case 'exodia': {
+          // Instant win
+          room.phase = 'game-over';
+          const scores: Record<string, number> = {};
+          room.players.forEach((p) => (scores[p.name] = p.score));
+          this.io.to(room.id).emit('game-over', scores, playerId);
+          this.io.to(room.id).emit('notification', `EXODIA! ${player.name} has summoned the forbidden one and wins instantly!`);
+          this.broadcastState(room);
+          return true;
+        }
+        case 'steal_card': {
+          const others = room.players.filter((p) => p.id !== playerId && p.cards.length > 0);
+          if (others.length > 0) {
+            const target = others[Math.floor(Math.random() * others.length)];
+            const idx = Math.floor(Math.random() * target.cards.length);
+            const stolen = target.cards.splice(idx, 1)[0];
+            player.cards.push(stolen);
+            this.io.to(room.id).emit('notification', `${player.name} stole a card from ${target.name}!`);
+          }
+          break;
+        }
+        case 'hand_swap': {
+          const others = room.players.filter((p) => p.id !== playerId);
+          if (others.length > 0) {
+            const target = others[Math.floor(Math.random() * others.length)];
+            const temp = [...player.cards];
+            player.cards = [...target.cards];
+            target.cards = temp;
+            this.io.to(room.id).emit('notification', `${player.name} swapped hands with ${target.name}!`);
+          }
+          break;
+        }
+        case 'customize_card': {
+          // Reroll: discard one random card and draw a replacement
+          if (player.cards.length > 0) {
+            const discardIdx = Math.floor(Math.random() * player.cards.length);
+            player.cards.splice(discardIdx, 1);
+            const deck = this.decks.get(room.id);
+            if (deck && deck.whiteDeck.length > 0) {
+              const template = deck.whiteDeck.pop()!;
+              player.cards.push({ ...template, id: crypto.randomUUID() });
+            }
+            this.io.to(room.id).emit('notification', `${player.name} customized their hand!`);
+          }
+          break;
+        }
+        case 'half_hand_discard': {
+          const discardCount = Math.ceil(player.cards.length / 2);
+          for (let i = 0; i < discardCount; i++) {
+            if (player.cards.length === 0) break;
+            const idx = Math.floor(Math.random() * player.cards.length);
+            const discarded = player.cards.splice(idx, 1)[0];
+            const deck = this.decks.get(room.id);
+            if (deck) deck.whiteDiscard.push(discarded);
+          }
+          this.io.to(room.id).emit('notification', `${player.name} lost half their hand!`);
+          break;
+        }
+        case 'forced_random': {
+          const others = room.players.filter((p) => p.id !== playerId && p.abductionRounds === 0 && !room.submittedCards.some((s) => s.playerId === p.id));
+          if (others.length > 0) {
+            const target = others[Math.floor(Math.random() * others.length)];
+            if (target.cards.length > 0) {
+              const idx = Math.floor(Math.random() * target.cards.length);
+              const forced = target.cards[idx];
+              target.forcedRandomCardId = forced.id;
+              this.io.to(room.id).emit('notification', `${target.name} must submit a random card this round!`);
+            }
+          }
+          break;
+        }
+        case 'abduction': {
+          player.abductionRounds = 2;
+          this.io.to(room.id).emit('notification', `${player.name} was abducted! They will miss the next 2 rounds.`);
+          break;
+        }
+        case 'auto_draw': {
+          player.autoDrawEnabled = true;
+          this.io.to(room.id).emit('notification', `${player.name} unlocked auto-draw!`);
+          break;
+        }
+        case 'double_points_hand': {
+          player.doublePointsHandRounds = 1;
+          this.io.to(room.id).emit('notification', `${player.name}'s hand cards are worth double points this round!`);
+          break;
+        }
+        case 'card_quality_down': {
+          const others = room.players.filter((p) => p.id !== playerId);
+          if (others.length > 0) {
+            const target = others[Math.floor(Math.random() * others.length)];
+            target.cardQualityDownRounds = 1;
+            this.io.to(room.id).emit('notification', `${target.name} draws half cards next round!`);
+          }
+          break;
+        }
+      }
+    }
+
     room.submittedCards.push({ playerId, cards: playedCards });
     this.io.to(room.id).emit('card-played', playerId);
 
-    // Check if everyone except judge has played (count unique submitters)
-    const expectedSubmissions = room.players.filter((p) => p.id !== room.judgeId).length;
+    // Check if everyone except judge has played (count unique submitters, skip abducted)
+    const expectedSubmissions = room.players.filter((p) => p.id !== room.judgeId && p.abductionRounds === 0).length;
     const uniqueSubmitters = new Set(room.submittedCards.map((s) => s.playerId)).size;
     if (uniqueSubmitters >= expectedSubmissions) {
       room.phase = 'judging';
@@ -319,27 +416,29 @@ export class RoomManager {
 
     let pointsAwarded = 1;
 
-    // double_points buff
-    if (winner.activeBuffs.some((b) => b.type === 'double_points')) {
+    // double_points_win: if winning submission contains a double_points_win card
+    const winningSub = room.submittedCards.find((s) => s.playerId === winnerId);
+    if (winningSub?.cards.some((c) => c.effect?.type === 'double_points_win')) {
       pointsAwarded = 2;
-      this.io.to(room.id).emit('notification', `${winner.name} scored double points! (+2)`);
+      this.io.to(room.id).emit('notification', `${winner.name} scored double points with a winning card! (+2)`);
+    }
+
+    // double_points_hand: active this round
+    if (winner.doublePointsHandRounds > 0) {
+      pointsAwarded = 2;
+      this.io.to(room.id).emit('notification', `${winner.name}'s hand bonus doubled the points! (+2)`);
     }
 
     winner.score += pointsAwarded;
     room.phase = 'reveal';
 
-    // point_tax debuff: winner gives 1 point to lowest scorer
-    const taxBuff = winner.activeBuffs.find((b) => b.type === 'point_tax');
-    if (taxBuff) {
-      const lowest = room.players.reduce((a, b) => (a.score < b.score ? a : b));
-      if (lowest.id !== winner.id) {
-        winner.score -= 1;
-        lowest.score += 1;
-        this.io.to(room.id).emit('notification', `${winner.name} paid point tax to ${lowest.name}!`);
-      }
+    // point_drain: if winning submission contains a point_drain card, winner loses 1 point
+    if (winningSub?.cards.some((c) => c.effect?.type === 'point_drain')) {
+      winner.score -= 1;
+      this.io.to(room.id).emit('notification', `${winner.name} was drained by a debuff card! (-1 point)`);
     }
 
-    const winningCards = room.submittedCards.find((s) => s.playerId === winnerId)?.cards || room.submittedCards[0].cards;
+    const winningCards = winningSub?.cards || room.submittedCards[0].cards;
     this.io.to(room.id).emit('judge-picked', winnerId, winningCards);
 
     // Check win conditions
@@ -394,11 +493,16 @@ export class RoomManager {
       p.cards = [];
       p.submittedCardId = undefined;
       p.blankCardsRemaining = room.blankCardsEnabled ? 3 : 0;
-      p.activeBuffs = [];
+      p.abductionRounds = 0;
+      p.analProbeRounds = 0;
+      p.doublePointsHandRounds = 0;
+      p.cardQualityDownRounds = 0;
+      p.autoDrawEnabled = false;
+      p.forcedRandomCardId = undefined;
     });
     const deck = this.decks.get(room.id);
     if (deck) {
-      const { blackCards, whiteCards } = getCardsForPacks(room.cardPacks);
+      const { blackCards, whiteCards } = getCardsForPacks(room.cardPacks, room.buffsEnabled);
       deck.whiteDeck = shuffleArray([...whiteCards]);
       deck.blackDeck = shuffleArray([...blackCards]);
       deck.whiteDiscard = [];

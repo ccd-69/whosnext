@@ -59,6 +59,11 @@
            font-bold text-sm leading-tight border border-white/30;
   }
 
+  .card-effect {
+    @apply bg-yellow-100 text-black p-4 rounded-xl shadow-lg
+           font-bold text-sm leading-tight border-2 border-yellow-400;
+  }
+
   .app-drag-region {
     -webkit-app-region: drag;
   }

@@ -1,5 +1,23 @@
 // Shared game types used by both server and renderer
 
+export type CardEffectType =
+  | 'double_points_win'    // win with this card = +2 points
+  | 'point_drain'          // winner of round loses 1 point
+  | 'customize_card'       // edit any card text in your hand
+  | 'hand_swap'            // 2 random players swap hands
+  | 'exodia'               // instant win the entire game
+  | 'abduction'            // skip next 2 rounds, return with +cards for 2
+  | 'auto_draw'            // passive: at 1 card left, draw 3
+  | 'half_hand_discard'    // discard half your hand
+  | 'forced_random'        // force another player to submit a random card
+  | 'steal_card'           // steal a card from another player
+  | 'double_points_hand'   // all your cards award 2x for 1 round
+  | 'card_quality_down';   // target draws half cards for 1 round
+
+export interface CardEffect {
+  type: CardEffectType;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -10,7 +28,13 @@ export interface Player {
   cards: Card[];
   submittedCardId?: string;
   blankCardsRemaining: number;
-  activeBuffs: Buff[];
+  // Persistent multi-round states
+  abductionRounds: number;       // >0 = skip rounds
+  analProbeRounds: number;       // >0 = extra cards per round
+  doublePointsHandRounds: number;  // >0 = hand cards 2x points
+  cardQualityDownRounds: number;   // >0 = draw half cards
+  autoDrawEnabled: boolean;      // at 1 card, auto draw 3
+  forcedRandomCardId?: string;     // card ID forced to play this round
 }
 
 export interface Card {
@@ -19,26 +43,10 @@ export interface Card {
   type: 'black' | 'white';
   pickCount?: number; // for black cards: how many white cards to play
   isBlank?: boolean;  // for white cards: player can type custom text
+  effect?: CardEffect; // special effect card
 }
 
 export type CardPack = 'base' | 'nsfw' | 'dark' | 'absurd';
-
-export type BuffType =
-  | 'double_points'
-  | 'extra_card'
-  | 'steal_card'
-  | 'silence'
-  | 'point_tax'
-  | 'reveal_all'
-  | 'hand_swap';
-
-export interface Buff {
-  id: string;
-  type: BuffType;
-  roundsRemaining: number;
-  fromPlayerId: string;
-  targetPlayerId: string;
-}
 
 export interface Room {
   id: string;

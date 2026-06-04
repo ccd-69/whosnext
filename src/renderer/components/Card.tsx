@@ -20,6 +20,7 @@ export default function Card({
   revealed = true,
 }: CardProps) {
   const isBlack = card.type === 'black';
+  const isEffect = !!card.effect;
 
   const sizeClasses = {
     sm: 'w-40 h-28 text-xs p-3',
@@ -34,7 +35,7 @@ export default function Card({
       disabled={disabled}
       className={`
         ${sizeClasses[size]}
-        ${isBlack ? 'card-black' : 'card-white'}
+        ${isBlack ? 'card-black' : isEffect ? 'card-effect' : 'card-white'}
         rounded-xl shadow-lg
         flex flex-col justify-between items-start text-left
         transition-all duration-200
@@ -62,8 +63,8 @@ export default function Card({
           {isBlack && card.pickCount != null && card.pickCount > 1 && (
             <span className="text-xs opacity-60 mt-2">Pick {card.pickCount}</span>
           )}
-          <span className={`text-[10px] font-bold uppercase tracking-wider mt-auto ${isBlack ? 'text-white/40' : 'text-black/40'}`}>
-            {isBlack ? "Who's Next?" : 'Answer Card'}
+          <span className={`text-[10px] font-bold uppercase tracking-wider mt-auto ${isBlack ? 'text-white/40' : isEffect ? 'text-yellow-600/60' : 'text-black/40'}`}>
+            {isBlack ? "Who's Next?" : isEffect ? 'Effect Card' : 'Answer Card'}
           </span>
         </>
       ) : (

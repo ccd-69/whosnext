@@ -190,29 +190,36 @@ export default function GameBoard() {
               }`}
             >
               <div className="flex items-center gap-2 min-w-0">
-                <div className={`w-2 h-2 rounded-full shrink-0 ${p.isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className="font-semibold truncate">
+                <div className={`w-2 h-2 rounded-full shrink-0 ${
+                  p.abductionRounds > 0 ? 'bg-purple-500' : p.isConnected ? 'bg-green-500' : 'bg-red-500'
+                }`} />
+                <span className={`font-semibold truncate ${p.abductionRounds > 0 ? 'text-purple-400 line-through' : ''}`}>
                   {p.name}
                   {p.id === room.judgeId && <Crown size={12} className="inline text-accent ml-1" />}
+                  {p.abductionRounds > 0 && <span className="text-[10px] text-purple-400 ml-1">(abducted)</span>}
                 </span>
-                {p.activeBuffs?.length > 0 && (
-                  <div className="flex gap-0.5">
-                    {p.activeBuffs.map((buff) => {
-                      const iconProps = { size: 10, className: 'text-yellow-400' };
-                      const icon = buff.type === 'double_points' ? <Zap {...iconProps} />
-                        : buff.type === 'silence' ? <Ban {...iconProps} />
-                        : buff.type === 'extra_card' ? <Plus {...iconProps} />
-                        : buff.type === 'reveal_all' ? <Eye {...iconProps} />
-                        : buff.type === 'hand_swap' ? <Shuffle {...iconProps} />
-                        : <Minus {...iconProps} />;
-                      return (
-                        <span key={buff.id} title={buff.type.replace(/_/g, ' ')} className="bg-yellow-500/10 rounded px-1">
-                          {icon}
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
+                <div className="flex gap-0.5">
+                  {p.analProbeRounds > 0 && (
+                    <span title="Anal Probe: extra cards" className="bg-pink-500/10 rounded px-1">
+                      <Plus size={10} className="text-pink-400" />
+                    </span>
+                  )}
+                  {p.doublePointsHandRounds > 0 && (
+                    <span title="Double points hand" className="bg-yellow-500/10 rounded px-1">
+                      <Zap size={10} className="text-yellow-400" />
+                    </span>
+                  )}
+                  {p.cardQualityDownRounds > 0 && (
+                    <span title="Card quality down" className="bg-red-500/10 rounded px-1">
+                      <Minus size={10} className="text-red-400" />
+                    </span>
+                  )}
+                  {p.autoDrawEnabled && (
+                    <span title="Auto-draw enabled" className="bg-blue-500/10 rounded px-1">
+                      <Plus size={10} className="text-blue-400" />
+                    </span>
+                  )}
+                </div>
               </div>
               <span className="font-bold shrink-0">{p.score}</span>
             </div>
@@ -411,7 +418,16 @@ export default function GameBoard() {
               <Card card={blackCard} size="md" />
             </div>
 
-            {/* Hand Column */}
+            {/* Abducted message */}
+            {myPlayer?.abductionRounds > 0 ? (
+              <div className="flex flex-col items-center justify-center gap-4 flex-1">
+                <div className="w-16 h-16 rounded-full bg-purple-500/20 flex items-center justify-center">
+                  <span className="text-purple-400 text-2xl">🛸</span>
+                </div>
+                <p className="text-purple-400 font-bold text-lg">You have been abducted!</p>
+                <p className="text-white/40 text-sm">You will return in {myPlayer.abductionRounds} round{myPlayer.abductionRounds > 1 ? 's' : ''} with an anal probe.</p>
+              </div>
+            ) : (
             <div className="flex flex-col items-center gap-3 flex-1 min-w-0 h-full overflow-hidden">
               <p className="text-white/60 shrink-0 pt-2">
                 Pick {pickCount > 1 ? `${pickCount} cards` : 'your best answer'}
@@ -483,6 +499,7 @@ export default function GameBoard() {
                 </button>
               )}
             </div>
+            )}
 
             {scoreboardPanel}
           </div>

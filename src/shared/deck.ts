@@ -214,7 +214,50 @@ export const ABSURD_WHITE_CARDS: Card[] = [
   { id: 'aw30', text: 'A horse-sized duck that is also racist', type: 'white' },
 ];
 
-export function getCardsForPacks(packs: CardPack[]) {
+export const EFFECT_CARDS: Card[] = [
+  // Common (3 each)
+  { id: 'ef-steal-1', text: 'Steal a card from another player', type: 'white', effect: { type: 'steal_card' } },
+  { id: 'ef-steal-2', text: 'Steal a card from another player', type: 'white', effect: { type: 'steal_card' } },
+  { id: 'ef-steal-3', text: 'Steal a card from another player', type: 'white', effect: { type: 'steal_card' } },
+  { id: 'ef-swap-1', text: 'Swap hands with a random player', type: 'white', effect: { type: 'hand_swap' } },
+  { id: 'ef-swap-2', text: 'Swap hands with a random player', type: 'white', effect: { type: 'hand_swap' } },
+  { id: 'ef-swap-3', text: 'Swap hands with a random player', type: 'white', effect: { type: 'hand_swap' } },
+  { id: 'ef-edit-1', text: 'Edit the text of any card in your hand', type: 'white', effect: { type: 'customize_card' } },
+  { id: 'ef-edit-2', text: 'Edit the text of any card in your hand', type: 'white', effect: { type: 'customize_card' } },
+  { id: 'ef-edit-3', text: 'Edit the text of any card in your hand', type: 'white', effect: { type: 'customize_card' } },
+  { id: 'ef-discard-1', text: 'Discard half your hand (rounded up)', type: 'white', effect: { type: 'half_hand_discard' } },
+  { id: 'ef-discard-2', text: 'Discard half your hand (rounded up)', type: 'white', effect: { type: 'half_hand_discard' } },
+  { id: 'ef-discard-3', text: 'Discard half your hand (rounded up)', type: 'white', effect: { type: 'half_hand_discard' } },
+  { id: 'ef-force-1', text: 'Force another player to submit a random card', type: 'white', effect: { type: 'forced_random' } },
+  { id: 'ef-force-2', text: 'Force another player to submit a random card', type: 'white', effect: { type: 'forced_random' } },
+  { id: 'ef-force-3', text: 'Force another player to submit a random card', type: 'white', effect: { type: 'forced_random' } },
+  { id: 'ef-dblhand-1', text: 'Double points for all cards in your hand this round', type: 'white', effect: { type: 'double_points_hand' } },
+  { id: 'ef-dblhand-2', text: 'Double points for all cards in your hand this round', type: 'white', effect: { type: 'double_points_hand' } },
+  { id: 'ef-dblhand-3', text: 'Double points for all cards in your hand this round', type: 'white', effect: { type: 'double_points_hand' } },
+  // Uncommon (2 each)
+  { id: 'ef-dblwin-1', text: 'If this wins, you get 2 points', type: 'white', effect: { type: 'double_points_win' } },
+  { id: 'ef-dblwin-2', text: 'If this wins, you get 2 points', type: 'white', effect: { type: 'double_points_win' } },
+  { id: 'ef-drain-1', text: 'If this wins, the winner loses 1 point', type: 'white', effect: { type: 'point_drain' } },
+  { id: 'ef-drain-2', text: 'If this wins, the winner loses 1 point', type: 'white', effect: { type: 'point_drain' } },
+  { id: 'ef-down-1', text: 'Target player draws half as many cards next round', type: 'white', effect: { type: 'card_quality_down' } },
+  { id: 'ef-down-2', text: 'Target player draws half as many cards next round', type: 'white', effect: { type: 'card_quality_down' } },
+  { id: 'ef-draw-1', text: 'Auto-draw 3 cards when you have 1 card left', type: 'white', effect: { type: 'auto_draw' } },
+  { id: 'ef-draw-2', text: 'Auto-draw 3 cards when you have 1 card left', type: 'white', effect: { type: 'auto_draw' } },
+  { id: 'ef-abduct-1', text: 'You are abducted for 2 rounds, then get extra cards', type: 'white', effect: { type: 'abduction' } },
+  { id: 'ef-abduct-2', text: 'You are abducted for 2 rounds, then get extra cards', type: 'white', effect: { type: 'abduction' } },
+  // Ultra rare (1 each) — exodia
+  { id: 'ef-exodia', text: 'EXODIA — You immediately win the game', type: 'white', effect: { type: 'exodia' } },
+];
+
+export function getCardsForPacks(packs: CardPack[], includeEffects: boolean) {
+  const { blackCards, whiteCards } = getCardsForPacksInternal(packs);
+  if (includeEffects) {
+    return { blackCards, whiteCards: [...whiteCards, ...EFFECT_CARDS] };
+  }
+  return { blackCards, whiteCards };
+}
+
+function getCardsForPacksInternal(packs: CardPack[]) {
   const blackCards: Card[] = [];
   const whiteCards: Card[] = [];
   for (const pack of packs) {
