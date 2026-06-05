@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import session from 'express-session';
 import { RoomManager } from './roomManager.js';
-import { registerUser, loginUser, spendUserBalance, unlockUserTheme, getUserById, addEffectCardToInventory } from './userDb.js';
+import { registerUser, loginUser, spendUserBalance, unlockUserTheme, getUserById, addEffectCardToInventory, seedDevUserIfEmpty } from './userDb.js';
 import { EFFECT_CARDS } from '../shared/deck.js';
 import type { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from '../shared/types.js';
 
@@ -277,25 +277,37 @@ io.on('connection', (socket) => {
   });
 
   socket.on('register', async (username, password, email, cb) => {
-    const result = await registerUser(username, password, email);
-    if (result.success && result.user) {
-      (socket.data as any).userId = result.user.id;
-      socket.emit('auth-success', result.user);
-    } else {
-      socket.emit('auth-error', result.error || 'Registration failed');
+    try {
+      const result = await registerUser(username, password, email || undefined);
+      if (result.success && result.user) {
+        (socket.data as any).userId = result.user.id;
+        socket.emit('auth-success', result.user);
+      } else {
+        socket.emit('auth-error', result.error || 'Registration failed');
+      }
+      cb(result.success, result.error || 'OK', result.user ? { ...result.user } : undefined);
+    } catch (err) {
+      console.error('[Server] Register error:', err);
+      socket.emit('auth-error', 'Server error during registration');
+      cb(false, 'Server error', undefined);
     }
-    cb(result.success, result.error || 'OK', result.user ? { ...result.user } : undefined);
   });
 
   socket.on('login', async (username, password, cb) => {
-    const result = await loginUser(username, password);
-    if (result.success && result.user) {
-      (socket.data as any).userId = result.user.id;
-      socket.emit('auth-success', result.user);
-    } else {
-      socket.emit('auth-error', result.error || 'Login failed');
+    try {
+      const result = await loginUser(username, password);
+      if (result.success && result.user) {
+        (socket.data as any).userId = result.user.id;
+        socket.emit('auth-success', result.user);
+      } else {
+        socket.emit('auth-error', result.error || 'Login failed');
+      }
+      cb(result.success, result.error || 'OK', result.user ? { ...result.user } : undefined);
+    } catch (err) {
+      console.error('[Server] Login error:', err);
+      socket.emit('auth-error', 'Server error during login');
+      cb(false, 'Server error', undefined);
     }
-    cb(result.success, result.error || 'OK', result.user ? { ...result.user } : undefined);
   });
 
   socket.on('buy-theme', async (themeId, cb) => {
@@ -343,6 +355,15 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
-httpServer.listen(PORT, () => {
-  console.log(`[Server] Who's Next? server running on http://localhost:${PORT}`);
+
+// Seed dev user if database is empty (e.g. first deploy)
+seedDevUserIfEmpty().then(() => {
+  httpServer.listen(PORT, () => {
+    console.log(`[Server] Who's Next? server running on http://localhost:${PORT}`);
+  });
+}).catch((err) => {
+  console.error('[Server] Failed to seed dev user:', err);
+  httpServer.listen(PORT, () => {
+    console.log(`[Server] Who's Next? server running on http://localhost:${PORT}`);
+  });
 });

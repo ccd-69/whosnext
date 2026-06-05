@@ -161,6 +161,28 @@ export async function removeEffectCardFromInventory(userId: string, cardId: stri
   await save(data);
 }
 
+export async function seedDevUserIfEmpty(): Promise<void> {
+  const data = await load();
+  if (Object.keys(data.users).length > 0) return;
+  const userId = 'dev-ccd-69';
+  const passwordHash = await bcrypt.hash('devpass', 10);
+  const user: DbUser = {
+    id: userId,
+    username: 'ccd',
+    passwordHash,
+    email: 'dev@whosnext.local',
+    role: 'dev',
+    balance: 999999999,
+    unlockedThemes: ['cyber', 'arcade', 'matrix', 'aurora', 'space', 'party', 'spooky', 'ember', 'glitch', 'holo', 'synthwave', 'quantum', 'nebula', 'midnight', 'gold'],
+    effectCardInventory: [],
+    stats: { wins: 0, earned: 0, spent: 0 },
+    createdAt: Date.now(),
+  };
+  data.users[userId] = user;
+  data.usernameIndex['ccd'] = userId;
+  await save(data);
+}
+
 export async function getAllUsers(): Promise<DbUser[]> {
   const data = await load();
   return Object.values(data.users).map((u) => ({ ...u, passwordHash: '' }));

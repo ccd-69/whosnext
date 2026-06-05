@@ -57,7 +57,7 @@ export default function TitleScreen() {
         setAuthError('Passwords do not match.');
         return;
       }
-      emit('register', authUsername, authPassword, authEmail.trim() || undefined, (success: boolean, message: string) => {
+      emit('register', authUsername, authPassword, authEmail.trim() || '', (success: boolean, message: string) => {
         if (!success) setAuthError(message);
       });
     } else {
