@@ -13,11 +13,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const httpServer = createServer(app);
 
+const isProd = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+
 const sessionMiddleware = session({
-  secret: 'whosnext-session-secret-change-me',
+  secret: process.env.SESSION_SECRET || 'whosnext-session-secret-change-me',
   resave: false,
   saveUninitialized: true,
-  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 },
+  cookie: { secure: isProd, maxAge: 24 * 60 * 60 * 1000 },
 });
 app.use(sessionMiddleware);
 app.use(express.json());
@@ -28,7 +30,10 @@ const io = new Server<
   InterServerEvents,
   SocketData
 >(httpServer, {
-  cors: { origin: '*', credentials: true },
+  cors: {
+    origin: (origin, callback) => callback(null, origin || true),
+    credentials: true,
+  },
   connectionStateRecovery: {
     maxDisconnectionDuration: 2 * 60 * 1000,
     skipMiddlewares: true,
@@ -69,20 +74,22 @@ io.on('connection', (socket) => {
   }
 
   socket.on('create-room', (opts, cb) => {
+    console.log('[Server] create-room from', socket.id, 'name=', opts.hostName);
     const room = roomManager.createRoom({ ...opts, userId: socket.data.userId }, socket.id);
     socket.join(room.id);
     socket.data.playerId = room.players[0].id;
     socket.data.roomId = room.id;
-    // Store session info
     if (reqSession) {
       reqSession.roomId = room.id;
       reqSession.sessionId = room.players[0].sessionId;
       reqSession.save?.();
     }
+    console.log('[Server] Created room', room.code, 'id=', room.id);
     cb(room);
   });
 
   socket.on('join-room', (code, playerName, cb) => {
+    console.log('[Server] join-room from', socket.id, 'code=', code, 'name=', playerName);
     const room = roomManager.joinRoom(code, playerName, socket.id, socket.data.userId);
     if (room) {
       socket.join(room.id);
@@ -96,18 +103,21 @@ io.on('connection', (socket) => {
           reqSession.save?.();
         }
       }
+      console.log('[Server] Player joined room', room.code, 'players=', room.players.length);
       roomManager.broadcastState(room);
       socket.to(room.id).emit('player-joined', player!);
       socket.emit('chat-history', roomManager.getChatHistory(room.id));
       socket.emit('custom-emojis', roomManager.getCustomEmojis(room.id));
       cb(room);
     } else {
+      console.log('[Server] join-room failed: room not found', code);
       cb(null);
     }
   });
 
   socket.on('start-game', async () => {
     const roomId = socket.data.roomId;
+    console.log('[Server] start-game from', socket.id, 'roomId=', roomId);
     if (!roomId) return;
     await roomManager.startGame(roomId);
   });
