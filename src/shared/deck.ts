@@ -241,19 +241,291 @@ export const EFFECT_CARDS: Card[] = [
   { id: 'ef-drain-2', text: 'If this wins, the winner loses 1 point', type: 'white', effect: { type: 'point_drain' } },
   { id: 'ef-down-1', text: 'Target player draws half as many cards next round', type: 'white', effect: { type: 'card_quality_down' } },
   { id: 'ef-down-2', text: 'Target player draws half as many cards next round', type: 'white', effect: { type: 'card_quality_down' } },
-  { id: 'ef-draw-1', text: 'Auto-draw 3 cards when you have 1 card left', type: 'white', effect: { type: 'auto_draw' } },
-  { id: 'ef-draw-2', text: 'Auto-draw 3 cards when you have 1 card left', type: 'white', effect: { type: 'auto_draw' } },
   { id: 'ef-abduct-1', text: 'You are abducted for 2 rounds, then get extra cards', type: 'white', effect: { type: 'abduction' } },
   { id: 'ef-abduct-2', text: 'You are abducted for 2 rounds, then get extra cards', type: 'white', effect: { type: 'abduction' } },
   // Ultra rare (1 each) — exodia
   { id: 'ef-exodia', text: 'EXODIA — You immediately win the game', type: 'white', effect: { type: 'exodia' } },
 ];
 
-export function getCardsForPacks(packs: CardPack[], includeEffects: boolean) {
+export const GEEK_BLACK_CARDS: Card[] = [
+  { id: 'gb1', text: `The only thing that can save the princess now is _____.`, type: 'black', pickCount: 1 },
+  { id: 'gb2', text: `In the next Pokemon game, the new type will be _____.`, type: 'black', pickCount: 1 },
+  { id: 'gb3', text: `What is the next big tech innovation?`, type: 'black', pickCount: 1 },
+  { id: 'gb4', text: `Why did the Wi-Fi go down?`, type: 'black', pickCount: 1 },
+  { id: 'gb5', text: `What is the final boss of the internet?`, type: 'black', pickCount: 1 },
+  { id: 'gb6', text: `I can't believe they added _____ to Minecraft.`, type: 'black', pickCount: 1 },
+  { id: 'gb7', text: `The true cause of the blue screen of death was _____.`, type: 'black', pickCount: 1 },
+  { id: 'gb8', text: `What is the geek's guilty pleasure?`, type: 'black', pickCount: 1 },
+  { id: 'gb9', text: `In the next Marvel movie, the villain will be _____.`, type: 'black', pickCount: 1 },
+  { id: 'gb10', text: `What did the AI uprising start with?`, type: 'black', pickCount: 1 },
+];
+
+export const GEEK_WHITE_CARDS: Card[] = [
+  { id: 'gw1', text: `A 4chan thread`, type: 'white' },
+  { id: 'gw2', text: `RGB lighting`, type: 'white' },
+  { id: 'gw3', text: `A NFT of a fart`, type: 'white' },
+  { id: 'gw4', text: `The Konami Code`, type: 'white' },
+  { id: 'gw5', text: `A creeper in real life`, type: 'white' },
+  { id: 'gw6', text: `An oversized gaming chair`, type: 'white' },
+  { id: 'gw7', text: `A mechanical keyboard`, type: 'white' },
+  { id: 'gw8', text: `A speedrun of life`, type: 'white' },
+  { id: 'gw9', text: `The metaverse`, type: 'white' },
+  { id: 'gw10', text: `A bitcoin wallet`, type: 'white' },
+  { id: 'gw11', text: `A rage quit`, type: 'white' },
+  { id: 'gw12', text: `A LAN party`, type: 'white' },
+  { id: 'gw13', text: `A glitch in the matrix`, type: 'white' },
+  { id: 'gw14', text: `A modded Skyrim`, type: 'white' },
+  { id: 'gw15', text: `A steam sale`, type: 'white' },
+  { id: 'gw16', text: `A waifu pillow`, type: 'white' },
+  { id: 'gw17', text: `A DDoS attack`, type: 'white' },
+  { id: 'gw18', text: `A Tesla in space`, type: 'white' },
+  { id: 'gw19', text: `A Linux user`, type: 'white' },
+  { id: 'gw20', text: `A 360 no-scope`, type: 'white' },
+  { id: 'gw21', text: `A broken graphics card`, type: 'white' },
+  { id: 'gw22', text: `A VR headset`, type: 'white' },
+  { id: 'gw23', text: `A hot pocket`, type: 'white' },
+  { id: 'gw24', text: `A Linux installation`, type: 'white' },
+  { id: 'gw25', text: `A Rickroll`, type: 'white' },
+  { id: 'gw26', text: `A Discord moderator`, type: 'white' },
+  { id: 'gw27', text: `A neckbeard`, type: 'white' },
+  { id: 'gw28', text: `A failed Kickstarter`, type: 'white' },
+  { id: 'gw29', text: `A pay-to-win skin`, type: 'white' },
+  { id: 'gw30', text: `A cheeto-dusted finger`, type: 'white' },
+];
+
+export const FOOD_BLACK_CARDS: Card[] = [
+  { id: 'fb1', text: `The secret ingredient in my grandmother's recipe is _____.`, type: 'black', pickCount: 1 },
+  { id: 'fb2', text: `What is the next big food trend?`, type: 'black', pickCount: 1 },
+  { id: 'fb3', text: `Why did the chef get fired?`, type: 'black', pickCount: 1 },
+  { id: 'fb4', text: `What did I find in my fast food burger?`, type: 'black', pickCount: 1 },
+  { id: 'fb5', text: `The cooking show was ruined by _____.`, type: 'black', pickCount: 1 },
+  { id: 'fb6', text: `I like my coffee like I like my _____.`, type: 'black', pickCount: 1 },
+  { id: 'fb7', text: `What is the most exotic food?`, type: 'black', pickCount: 1 },
+  { id: 'fb8', text: `The new flavor at the ice cream shop is _____.`, type: 'black', pickCount: 1 },
+  { id: 'fb9', text: `What did Gordon Ramsay call the worst thing he ever ate?`, type: 'black', pickCount: 1 },
+  { id: 'fb10', text: `What is the best pizza topping?`, type: 'black', pickCount: 1 },
+];
+
+export const FOOD_WHITE_CARDS: Card[] = [
+  { id: 'fw1', text: `A deep-fried twinkie`, type: 'white' },
+  { id: 'fw2', text: `Kale`, type: 'white' },
+  { id: 'fw3', text: `A ghost pepper`, type: 'white' },
+  { id: 'fw4', text: `A Michelin star`, type: 'white' },
+  { id: 'fw5', text: `A jar of mayonnaise`, type: 'white' },
+  { id: 'fw6', text: `A raw onion`, type: 'white' },
+  { id: 'fw7', text: `A gas station sushi`, type: 'white' },
+  { id: 'fw8', text: `A cronut`, type: 'white' },
+  { id: 'fw9', text: `A avocado toast`, type: 'white' },
+  { id: 'fw10', text: `A expired yogurt`, type: 'white' },
+  { id: 'fw11', text: `A all-you-can-eat buffet`, type: 'white' },
+  { id: 'fw12', text: `A ketchup on a hot dog`, type: 'white' },
+  { id: 'fw13', text: `A truffle oil`, type: 'white' },
+  { id: 'fw14', text: `A pineapple on pizza`, type: 'white' },
+  { id: 'fw15', text: `A spork`, type: 'white' },
+  { id: 'fw16', text: `A vegan cheese`, type: 'white' },
+  { id: 'fw17', text: `A baby back ribs`, type: 'white' },
+  { id: 'fw18', text: `A food coma`, type: 'white' },
+  { id: 'fw19', text: `A chef's kiss`, type: 'white' },
+  { id: 'fw20', text: `A secret sauce`, type: 'white' },
+  { id: 'fw21', text: `A burnt toast`, type: 'white' },
+  { id: 'fw22', text: `A ramen noodle`, type: 'white' },
+  { id: 'fw23', text: `A chocolate fountain`, type: 'white' },
+  { id: 'fw24', text: `A tofu`, type: 'white' },
+  { id: 'fw25', text: `A bacon-wrapped everything`, type: 'white' },
+  { id: 'fw26', text: `A hangry person`, type: 'white' },
+  { id: 'fw27', text: `A tapas bar`, type: 'white' },
+  { id: 'fw28', text: `A souffle`, type: 'white' },
+  { id: 'fw29', text: `A hot sauce`, type: 'white' },
+  { id: 'fw30', text: `A fondue pot`, type: 'white' },
+];
+
+export const SPORTS_BLACK_CARDS: Card[] = [
+  { id: 'sb1', text: `The newest Olympic sport is _____.`, type: 'black', pickCount: 1 },
+  { id: 'sb2', text: `What caused the referee to stop the game?`, type: 'black', pickCount: 1 },
+  { id: 'sb3', text: `The halftime show featured _____.`, type: 'black', pickCount: 1 },
+  { id: 'sb4', text: `What is the real reason the team lost?`, type: 'black', pickCount: 1 },
+  { id: 'sb5', text: `The coach's secret weapon is _____.`, type: 'black', pickCount: 1 },
+  { id: 'sb6', text: `What did the athlete test positive for?`, type: 'black', pickCount: 1 },
+  { id: 'sb7', text: `The baseball game was delayed by _____.`, type: 'black', pickCount: 1 },
+  { id: 'sb8', text: `What is the most extreme sport?`, type: 'black', pickCount: 1 },
+  { id: 'sb9', text: `The soccer riot was started by _____.`, type: 'black', pickCount: 1 },
+  { id: 'sb10', text: `What is the worst sports injury?`, type: 'black', pickCount: 1 },
+];
+
+export const SPORTS_WHITE_CARDS: Card[] = [
+  { id: 'sw1', text: `A deflated football`, type: 'white' },
+  { id: 'sw2', text: `A streaker`, type: 'white' },
+  { id: 'sw3', text: `A performance-enhancing drug`, type: 'white' },
+  { id: 'sw4', text: `A mascot fight`, type: 'white' },
+  { id: 'sw5', text: `A referee's blindness`, type: 'white' },
+  { id: 'sw6', text: `A home run`, type: 'white' },
+  { id: 'sw7', text: `A tailgate party`, type: 'white' },
+  { id: 'sw8', text: `A trophy wife`, type: 'white' },
+  { id: 'sw9', text: `A steroids scandal`, type: 'white' },
+  { id: 'sw10', text: `A penalty kick`, type: 'white' },
+  { id: 'sw11', text: `A broken bat`, type: 'white' },
+  { id: 'sw12', text: `A soccer mom`, type: 'white' },
+  { id: 'sw13', text: `A slam dunk`, type: 'white' },
+  { id: 'sw14', text: `A hat trick`, type: 'white' },
+  { id: 'sw15', text: `A underdog story`, type: 'white' },
+  { id: 'sw16', text: `A coach's temper`, type: 'white' },
+  { id: 'sw17', text: `A fantasy league`, type: 'white' },
+  { id: 'sw18', text: `A body slam`, type: 'white' },
+  { id: 'sw19', text: `A rain delay`, type: 'white' },
+  { id: 'sw20', text: `A trading card`, type: 'white' },
+  { id: 'sw21', text: `A locker room talk`, type: 'white' },
+  { id: 'sw22', text: `A hooligan`, type: 'white' },
+  { id: 'sw23', text: `A walk-off home run`, type: 'white' },
+  { id: 'sw24', text: `A concussion`, type: 'white' },
+  { id: 'sw25', text: `A championship ring`, type: 'white' },
+  { id: 'sw26', text: `A buzzer beater`, type: 'white' },
+  { id: 'sw27', text: `A tennis grunt`, type: 'white' },
+  { id: 'sw28', text: `A cursed jersey`, type: 'white' },
+  { id: 'sw29', text: `A benchwarmer`, type: 'white' },
+  { id: 'sw30', text: `A Gatorade shower`, type: 'white' },
+];
+
+export const FANTASY_BLACK_CARDS: Card[] = [
+  { id: 'fab1', text: `The dragon's only weakness is _____.`, type: 'black', pickCount: 1 },
+  { id: 'fab2', text: `What did the wizard summon by accident?`, type: 'black', pickCount: 1 },
+  { id: 'fab3', text: `The prophecy foretold _____.`, type: 'black', pickCount: 1 },
+  { id: 'fab4', text: `What is hidden in the dungeon?`, type: 'black', pickCount: 1 },
+  { id: 'fab5', text: `The elven kingdom is famous for _____.`, type: 'black', pickCount: 1 },
+  { id: 'fab6', text: `What did the necromancer raise from the dead?`, type: 'black', pickCount: 1 },
+  { id: 'fab7', text: `The magic potion requires _____.`, type: 'black', pickCount: 1 },
+  { id: 'fab8', text: `What is the barbarian's favorite hobby?`, type: 'black', pickCount: 1 },
+  { id: 'fab9', text: `The dark lord was defeated by _____.`, type: 'black', pickCount: 1 },
+  { id: 'fab10', text: `What is the bard's new hit song about?`, type: 'black', pickCount: 1 },
+];
+
+export const FANTASY_WHITE_CARDS: Card[] = [
+  { id: 'faw1', text: `A +1 sword of sadness`, type: 'white' },
+  { id: 'faw2', text: `A cursed amulet`, type: 'white' },
+  { id: 'faw3', text: `A potion of dubious origin`, type: 'white' },
+  { id: 'faw4', text: `A talking horse`, type: 'white' },
+  { id: 'faw5', text: `A dungeon master`, type: 'white' },
+  { id: 'faw6', text: `A fireball to the face`, type: 'white' },
+  { id: 'faw7', text: `A quest for the holy grail`, type: 'white' },
+  { id: 'faw8', text: `A troll under a bridge`, type: 'white' },
+  { id: 'faw9', text: `A invisibility cloak`, type: 'white' },
+  { id: 'faw10', text: `A bag of holding`, type: 'white' },
+  { id: 'faw11', text: `A critical fail`, type: 'white' },
+  { id: 'faw12', text: `A dragon hoard`, type: 'white' },
+  { id: 'faw13', text: `A paladin's righteousness`, type: 'white' },
+  { id: 'faw14', text: `A chaotic evil alignment`, type: 'white' },
+  { id: 'faw15', text: `A goblin army`, type: 'white' },
+  { id: 'faw16', text: `A magical artifact`, type: 'white' },
+  { id: 'faw17', text: `A D20`, type: 'white' },
+  { id: 'faw18', text: `A elven archer`, type: 'white' },
+  { id: 'faw19', text: `A necromancer's spellbook`, type: 'white' },
+  { id: 'faw20', text: `A tavern brawl`, type: 'white' },
+  { id: 'faw21', text: `A shiny loot`, type: 'white' },
+  { id: 'faw22', text: `A fairy godmother`, type: 'white' },
+  { id: 'faw23', text: `A zombie apocalypse`, type: 'white' },
+  { id: 'faw24', text: `A ancient rune`, type: 'white' },
+  { id: 'faw25', text: `A mimic chest`, type: 'white' },
+  { id: 'faw26', text: `A healing potion`, type: 'white' },
+  { id: 'faw27', text: `A dark forest`, type: 'white' },
+  { id: 'faw28', text: `A royal bloodline`, type: 'white' },
+  { id: 'faw29', text: `A enchanted rose`, type: 'white' },
+  { id: 'faw30', text: `A wizards beard`, type: 'white' },
+];
+
+export const MUSIC_BLACK_CARDS: Card[] = [
+  { id: 'mb1', text: `The new genre taking over the charts is _____.`, type: 'black', pickCount: 1 },
+  { id: 'mb2', text: `What was the real reason the band broke up?`, type: 'black', pickCount: 1 },
+  { id: 'mb3', text: `The music video was banned for featuring _____.`, type: 'black', pickCount: 1 },
+  { id: 'mb4', text: `What did the DJ drop?`, type: 'black', pickCount: 1 },
+  { id: 'mb5', text: `The concert was ruined by _____.`, type: 'black', pickCount: 1 },
+  { id: 'mb6', text: `What is the worst thing to hear at a karaoke bar?`, type: 'black', pickCount: 1 },
+  { id: 'mb7', text: `The rock star's final words were _____.`, type: 'black', pickCount: 1 },
+  { id: 'mb8', text: `What is hidden in the vinyl grooves?`, type: 'black', pickCount: 1 },
+  { id: 'mb9', text: `The Grammy for Best New Artist went to _____.`, type: 'black', pickCount: 1 },
+  { id: 'mb10', text: `What is the guitar solo actually about?`, type: 'black', pickCount: 1 },
+];
+
+export const MUSIC_WHITE_CARDS: Card[] = [
+  { id: 'mw1', text: `A one-hit wonder`, type: 'white' },
+  { id: 'mw2', text: `A autotune`, type: 'white' },
+  { id: 'mw3', text: `A mosh pit`, type: 'white' },
+  { id: 'mw4', text: `A boy band reunion`, type: 'white' },
+  { id: 'mw5', text: `A tambourine solo`, type: 'white' },
+  { id: 'mw6', text: `A vinyl record`, type: 'white' },
+  { id: 'mw7', text: `A screamo band`, type: 'white' },
+  { id: 'mw8', text: `A roadie`, type: 'white' },
+  { id: 'mw9', text: `A lip sync scandal`, type: 'white' },
+  { id: 'mw10', text: `A mixtape`, type: 'white' },
+  { id: 'mw11', text: `A kazoo`, type: 'white' },
+  { id: 'mw12', text: `A breakup album`, type: 'white' },
+  { id: 'mw13', text: `A mumble rap`, type: 'white' },
+  { id: 'mw14', text: `A power ballad`, type: 'white' },
+  { id: 'mw15', text: `A stage dive`, type: 'white' },
+  { id: 'mw16', text: `A ukulele`, type: 'white' },
+  { id: 'mw17', text: `A backstage pass`, type: 'white' },
+  { id: 'mw18', text: `A drop the bass`, type: 'white' },
+  { id: 'mw19', text: `A earworm`, type: 'white' },
+  { id: 'mw20', text: `A tribute band`, type: 'white' },
+  { id: 'mw21', text: `A cowbell`, type: 'white' },
+  { id: 'mw22', text: `A heavy metal`, type: 'white' },
+  { id: 'mw23', text: `A jazz hands`, type: 'white' },
+  { id: 'mw24', text: `A turntable`, type: 'white' },
+  { id: 'mw25', text: `A concert ticket`, type: 'white' },
+  { id: 'mw26', text: `A yodeling`, type: 'white' },
+  { id: 'mw27', text: `A punk rock`, type: 'white' },
+  { id: 'mw28', text: `A saxophone`, type: 'white' },
+  { id: 'mw29', text: `A record label`, type: 'white' },
+  { id: 'mw30', text: `A groupie`, type: 'white' },
+];
+
+export const INTERNET_BLACK_CARDS: Card[] = [
+  { id: 'ib1', text: `The next viral TikTok trend is _____.`, type: 'black', pickCount: 1 },
+  { id: 'ib2', text: `What caused the influencer to get cancelled?`, type: 'black', pickCount: 1 },
+  { id: 'ib3', text: `The meme of the decade is _____.`, type: 'black', pickCount: 1 },
+  { id: 'ib4', text: `What is the dark web's best-selling item?`, type: 'black', pickCount: 1 },
+  { id: 'ib5', text: `The YouTube algorithm recommended _____.`, type: 'black', pickCount: 1 },
+  { id: 'ib6', text: `What did the Twitter thread expose?`, type: 'black', pickCount: 1 },
+  { id: 'ib7', text: `The Twitch streamer was banned for _____.`, type: 'black', pickCount: 1 },
+  { id: 'ib8', text: `What is the next big social media platform?`, type: 'black', pickCount: 1 },
+  { id: 'ib9', text: `The Zoom call was interrupted by _____.`, type: 'black', pickCount: 1 },
+  { id: 'ib10', text: `What is the best thing to binge-watch?`, type: 'black', pickCount: 1 },
+];
+
+export const INTERNET_WHITE_CARDS: Card[] = [
+  { id: 'iw1', text: `A Karen`, type: 'white' },
+  { id: 'iw2', text: `A TikTok dance`, type: 'white' },
+  { id: 'iw3', text: `A conspiracy theory`, type: 'white' },
+  { id: 'iw4', text: `A cat video`, type: 'white' },
+  { id: 'iw5', text: `A bot account`, type: 'white' },
+  { id: 'iw6', text: `A clickbait title`, type: 'white' },
+  { id: 'iw7', text: `A NFT bro`, type: 'white' },
+  { id: 'iw8', text: `A viral challenge`, type: 'white' },
+  { id: 'iw9', text: `A DM slide`, type: 'white' },
+  { id: 'iw10', text: `A unsubscribe button`, type: 'white' },
+  { id: 'iw11', text: `A incognito mode`, type: 'white' },
+  { id: 'iw12', text: `A hashtag`, type: 'white' },
+  { id: 'iw13', text: `A flame war`, type: 'white' },
+  { id: 'iw14', text: `A deepfake`, type: 'white' },
+  { id: 'iw15', text: `A influencer`, type: 'white' },
+  { id: 'iw16', text: `A meme stock`, type: 'white' },
+  { id: 'iw17', text: `A subscribe button`, type: 'white' },
+  { id: 'iw18', text: `A troll farm`, type: 'white' },
+  { id: 'iw19', text: `A ASMR video`, type: 'white' },
+  { id: 'iw20', text: `A unboxing video`, type: 'white' },
+  { id: 'iw21', text: `A FYP`, type: 'white' },
+  { id: 'iw22', text: `A doomscroll`, type: 'white' },
+  { id: 'iw23', text: `A reply guy`, type: 'white' },
+  { id: 'iw24', text: `A thirst trap`, type: 'white' },
+  { id: 'iw25', text: `A algorithm`, type: 'white' },
+  { id: 'iw26', text: `A viral tweet`, type: 'white' },
+  { id: 'iw27', text: `A podcast`, type: 'white' },
+  { id: 'iw28', text: `A stan account`, type: 'white' },
+  { id: 'iw29', text: `A cringe compilation`, type: 'white' },
+  { id: 'iw30', text: `A buffering wheel`, type: 'white' },
+];
+
+export function getCardsForPacks(packs: CardPack[], _includeEffects: boolean) {
   const { blackCards, whiteCards } = getCardsForPacksInternal(packs);
-  if (includeEffects) {
-    return { blackCards, whiteCards: [...whiteCards, ...EFFECT_CARDS] };
-  }
+  // Effect cards are no longer mixed into the deck; they drop via drawCardForPlayer in roomManager instead
   return { blackCards, whiteCards };
 }
 
@@ -277,6 +549,30 @@ function getCardsForPacksInternal(packs: CardPack[]) {
       case 'absurd':
         blackCards.push(...ABSURD_BLACK_CARDS);
         whiteCards.push(...ABSURD_WHITE_CARDS);
+        break;
+      case 'geek':
+        blackCards.push(...GEEK_BLACK_CARDS);
+        whiteCards.push(...GEEK_WHITE_CARDS);
+        break;
+      case 'food':
+        blackCards.push(...FOOD_BLACK_CARDS);
+        whiteCards.push(...FOOD_WHITE_CARDS);
+        break;
+      case 'sports':
+        blackCards.push(...SPORTS_BLACK_CARDS);
+        whiteCards.push(...SPORTS_WHITE_CARDS);
+        break;
+      case 'fantasy':
+        blackCards.push(...FANTASY_BLACK_CARDS);
+        whiteCards.push(...FANTASY_WHITE_CARDS);
+        break;
+      case 'music':
+        blackCards.push(...MUSIC_BLACK_CARDS);
+        whiteCards.push(...MUSIC_WHITE_CARDS);
+        break;
+      case 'internet':
+        blackCards.push(...INTERNET_BLACK_CARDS);
+        whiteCards.push(...INTERNET_WHITE_CARDS);
         break;
     }
   }

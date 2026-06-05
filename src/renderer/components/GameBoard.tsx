@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../hooks/useSocket.js';
 import Card from './Card.js';
-import type { GameState, GamePhase, Player, Card as CardType, CardPlay } from '../../shared/types.js';
-import { ArrowLeft, Trophy, Clock, User, CheckCircle, Crown, Settings, PenLine, Zap, Eye, Ban, Shuffle, Plus, Minus } from 'lucide-react';
+import ChatPanel from './ChatPanel.js';
+import type { GameState, GamePhase, Player, Card as CardType, CardPlay, CardEffectType } from '../../shared/types.js';
+import { ArrowLeft, Trophy, Clock, User, CheckCircle, Crown, Settings, PenLine, Zap, Eye, Ban, Shuffle, Plus, Minus, RefreshCw, Flag } from 'lucide-react';
 import { playClick, playSubmit, playChime, playWin, playError, playJoin } from '../audio/sound.js';
 
 export default function GameBoard() {
@@ -13,16 +14,42 @@ export default function GameBoard() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [phase, setPhase] = useState<GamePhase>('lobby');
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [selectedEffectCardId, setSelectedEffectCardId] = useState<string | null>(null);
   const [winnerId, setWinnerId] = useState<string | null>(null);
+  const [secondWinnerId, setSecondWinnerId] = useState<string | null>(null);
   const [winningCards, setWinningCards] = useState<CardType[]>([]);
   const [finalScores, setFinalScores] = useState<Record<string, number> | null>(null);
   const [notification, setNotification] = useState('');
+  const [handChange, setHandChange] = useState('');
   const [blankModalOpen, setBlankModalOpen] = useState(false);
   const [blankText, setBlankText] = useState('');
   const [blankSelections, setBlankSelections] = useState<string[]>([]);
+  const [customizeModalOpen, setCustomizeModalOpen] = useState(false);
+  const [customizeCardId, setCustomizeCardId] = useState<string | null>(null);
+  const [customizeText, setCustomizeText] = useState('');
+  const [reSubmitMode, setReSubmitMode] = useState(false);
+  const [hostSettingsOpen, setHostSettingsOpen] = useState(false);
+  const [voteKickOpen, setVoteKickOpen] = useState(false);
+  const [voteKickTargetId, setVoteKickTargetId] = useState('');
+  const [voteKickTargetName, setVoteKickTargetName] = useState('');
+  const [voteKickInitiatorName, setVoteKickInitiatorName] = useState('');
+  const [voteKickTimer, setVoteKickTimer] = useState(30);
+  const [voteEndOpen, setVoteEndOpen] = useState(false);
+  const [voteEndInitiatorName, setVoteEndInitiatorName] = useState('');
+  const [voteEndTimer, setVoteEndTimer] = useState(30);
+
+  // Intermission / Shop
+  const [roundSummary, setRoundSummary] = useState<import('../../shared/types.js').RoundSummary | null>(null);
+  const [shopOpen, setShopOpen] = useState(false);
+  const [hasContinued, setHasContinued] = useState(false);
 
   useEffect(() => {
     if (!connected) return;
+
+    // If we navigated here after the game started, request current state
+    if (!gameState) {
+      emit('request-state');
+    }
 
     const unsubState = on('game-state', (state: GameState) => {
       setGameState(state);
@@ -33,19 +60,43 @@ export default function GameBoard() {
       setPhase(newPhase);
     });
 
+    const unsubSettings = on('settings-updated', (settings) => {
+      setGameState((prev) => {
+        if (!prev) return prev;
+        return { ...prev, room: { ...prev.room, ...settings } };
+      });
+      setNotification('Host updated game settings');
+      setTimeout(() => setNotification(''), 3000);
+    });
+
     const unsubRoundStart = on('round-start', () => {
       setSelectedCardIds([]);
+      setSelectedEffectCardId(null);
       setBlankSelections([]);
       setBlankText('');
+      setCustomizeModalOpen(false);
+      setCustomizeCardId(null);
+      setCustomizeText('');
       setWinnerId(null);
+      setSecondWinnerId(null);
       setWinningCards([]);
+      setFinalScores(null);
+      setRoundSummary(null);
+      setHasContinued(false);
+      setShopOpen(false);
       setNotification('New round started!');
       setTimeout(() => setNotification(''), 3000);
       playChime();
     });
 
     const unsubJudgePicked = on('judge-picked', (wid: string, wcards: CardType[]) => {
-      setWinnerId(wid);
+      setWinnerId((prev) => {
+        if (prev && prev !== wid) {
+          setSecondWinnerId(wid);
+          return prev;
+        }
+        return wid;
+      });
       setWinningCards(wcards);
       playWin();
     });
@@ -54,10 +105,19 @@ export default function GameBoard() {
       setFinalScores(scores);
     });
 
+    const unsubRoundSummary = on('round-summary', (summary) => {
+      setRoundSummary(summary);
+      setHasContinued(false);
+      setShopOpen(false);
+    });
+
     const unsubGameOver = on('game-over', (scores: Record<string, number>, winner: string) => {
       setPhase('game-over');
       setFinalScores(scores);
       setWinnerId(winner);
+      setRoundSummary(null);
+      setHasContinued(false);
+      setShopOpen(false);
     });
 
     const unsubError = on('error', (msg: string) => {
@@ -71,28 +131,138 @@ export default function GameBoard() {
       setTimeout(() => setNotification(''), 4000);
     });
 
+    const unsubEffectPlayed = on('effect-played', (playerName: string, effectType: CardEffectType) => {
+      const labels: Record<CardEffectType, string> = {
+        double_points_win: 'Double Points',
+        point_drain: 'Point Drain',
+        customize_card: 'Customize',
+        hand_swap: 'Hand Swap',
+        exodia: 'EXODIA',
+        abduction: 'Abduction',
+        half_hand_discard: 'Half Discard',
+        forced_random: 'Force Random',
+        steal_card: 'Steal Card',
+        double_points_hand: 'Double Hand',
+        card_quality_down: 'Quality Down',
+        first_of_month: 'First of Month',
+      };
+      const label = labels[effectType] || effectType;
+      setNotification(`${playerName} used ${label}!`);
+      setTimeout(() => setNotification(''), 4000);
+    });
+
+    const unsubHandChanged = on('hand-changed', (msg: string) => {
+      setHandChange(msg);
+      setTimeout(() => setHandChange(''), 5000);
+    });
+
+    const unsubCustomizePrompt = on('customize-prompt', () => {
+      setCustomizeModalOpen(true);
+      setCustomizeCardId(null);
+      setCustomizeText('');
+      setNotification('Customize Card: pick a card from your hand and rewrite it!');
+      setTimeout(() => setNotification(''), 4000);
+    });
+
+    const unsubVoteKickStarted = on('vote-kick-started', (targetId: string, targetName: string, initiatorName: string) => {
+      if (targetId === gameState?.myPlayerId) return; // target doesn't vote
+      setVoteKickTargetId(targetId);
+      setVoteKickTargetName(targetName);
+      setVoteKickInitiatorName(initiatorName);
+      setVoteKickOpen(true);
+      setVoteKickTimer(30);
+    });
+
+    const unsubVoteKickEnded = on('vote-kick-ended', (targetId: string, targetName: string, success: boolean) => {
+      setVoteKickOpen(false);
+      setVoteKickTargetId('');
+      setVoteKickTargetName('');
+      setVoteKickInitiatorName('');
+      setNotification(success ? `${targetName} was kicked!` : `Vote kick against ${targetName} failed.`);
+      setTimeout(() => setNotification(''), 4000);
+    });
+
+    const unsubVoteEndStarted = on('vote-end-started', (initiatorName: string) => {
+      setVoteEndInitiatorName(initiatorName);
+      setVoteEndOpen(true);
+      setVoteEndTimer(30);
+    });
+
+    const unsubVoteEndEnded = on('vote-end-ended', (success: boolean) => {
+      setVoteEndOpen(false);
+      setVoteEndInitiatorName('');
+      setNotification(success ? 'Vote passed! Game ending...' : 'Vote to end the game failed.');
+      setTimeout(() => setNotification(''), 4000);
+    });
+
+    const unsubReportAck = on('report-ack', (msg: string) => {
+      setNotification(msg);
+      setTimeout(() => setNotification(''), 5000);
+    });
+
     return () => {
       unsubState();
       unsubPhase();
+      unsubSettings();
       unsubRoundStart();
       unsubJudgePicked();
       unsubRoundEnd();
+      unsubRoundSummary();
       unsubGameOver();
       unsubError();
       unsubNotify();
+      unsubEffectPlayed();
+      unsubHandChanged();
+      unsubCustomizePrompt();
+      unsubVoteKickStarted();
+      unsubVoteKickEnded();
+      unsubVoteEndStarted();
+      unsubVoteEndEnded();
+      unsubReportAck();
     };
-  }, [connected, on]);
+  }, [connected, on, gameState, emit]);
+
+  // Vote kick countdown timer
+  useEffect(() => {
+    if (!voteKickOpen || voteKickTimer <= 0) return;
+    const interval = setInterval(() => {
+      setVoteKickTimer((t) => {
+        if (t <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [voteKickOpen, voteKickTimer]);
+
+  // Vote end countdown timer
+  useEffect(() => {
+    if (!voteEndOpen || voteEndTimer <= 0) return;
+    const interval = setInterval(() => {
+      setVoteEndTimer((t) => {
+        if (t <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [voteEndOpen, voteEndTimer]);
 
   function handlePlayCard() {
     const totalSelections = selectedCardIds.length + blankSelections.length;
-    if (totalSelections === 0 || totalSelections !== pickCount) return;
+    if (totalSelections === 0 || totalSelections !== effectivePickCount) return;
     const plays: CardPlay[] = [
       ...selectedCardIds.map((id) => ({ cardId: id })),
       ...blankSelections.map((text) => ({ cardId: '__blank__', customText: text })),
     ];
-    emit('play-card', plays, (success: boolean) => {
+    emit('play-card', plays, selectedEffectCardId, (success: boolean) => {
       if (success) {
         setSelectedCardIds([]);
+        setSelectedEffectCardId(null);
         setBlankSelections([]);
         setBlankText('');
         setNotification('Card played!');
@@ -102,8 +272,29 @@ export default function GameBoard() {
     });
   }
 
-  function handleJudgePick(playerId: string) {
-    emit('judge-pick', playerId, (success: boolean) => {
+  function handleReSubmit() {
+    const totalSelections = selectedCardIds.length + blankSelections.length;
+    if (totalSelections === 0 || totalSelections !== effectivePickCount) return;
+    const plays: CardPlay[] = [
+      ...selectedCardIds.map((id) => ({ cardId: id })),
+      ...blankSelections.map((text) => ({ cardId: '__blank__', customText: text })),
+    ];
+    emit('re-submit', plays, selectedEffectCardId, (success: boolean) => {
+      if (success) {
+        setSelectedCardIds([]);
+        setSelectedEffectCardId(null);
+        setBlankSelections([]);
+        setBlankText('');
+        setReSubmitMode(false);
+        setNotification('Re-submitted!');
+        setTimeout(() => setNotification(''), 3000);
+        playSubmit();
+      }
+    });
+  }
+
+  function handleJudgePick(submissionId: string) {
+    emit('judge-pick', submissionId, (success: boolean) => {
       if (success) {
         setNotification('Winner chosen!');
         setTimeout(() => setNotification(''), 2000);
@@ -128,16 +319,22 @@ export default function GameBoard() {
   const blackCard = room?.blackCard;
   const submittedCards = room?.submittedCards || [];
   const allPlayed = submittedCards.length >= (room?.players.length || 0) - 1;
-  const pickCount = blackCard?.pickCount || 1;
+  const blackPickCount = blackCard?.pickCount || 1;
+  const effectivePickCount = ((myPlayer?.doublePointsHandRounds ?? 0) > 0 && blackPickCount === 1) ? 1 : blackPickCount;
   const blankCardsRemaining = myPlayer?.blankCardsRemaining ?? 0;
   const totalSelected = selectedCardIds.length + blankSelections.length;
+  const effectHand = gameState?.effectHand || [];
+  const hasSubmitted = submittedCards.some((s) => s.playerId === gameState?.myPlayerId);
+  const canReSubmit = hasSubmitted && !isJudge && phase === 'playing' && (myPlayer?.reSubmitTokens ?? 0) > 0 && (myPlayer?.reSubmitCooldown ?? 0) === 0;
 
   const isVanilla = room
     ? (room.mode === 'quick-play'
-        ? room.maxPlayers === 8 && room.maxRounds === 10 && room.winningScore === 7
-        : room.maxPlayers === 8 && room.maxRounds === 20 && room.winningScore === 5)
+        ? room.maxPlayers === 12 && room.maxRounds === 10 && room.winningScore === 7
+        : room.maxPlayers === 12 && room.maxRounds === 20 && room.winningScore === 5)
+      && room.startingCards === 10
       && !room.blankCardsEnabled
       && !room.buffsEnabled
+      && room.maxReSubmits === 2
       && room.cardPacks.length === 1
       && room.cardPacks[0] === 'base'
     : false;
@@ -166,6 +363,7 @@ export default function GameBoard() {
           <div className="text-xs text-white/40 flex flex-col gap-0.5">
             <span>Players: {room.players.length}/{room.maxPlayers}</span>
             <span>Rounds: {room.maxRounds}</span>
+            <span>Hand Size: {room.startingCards}</span>
             <span>Win: {room.winningScore} pts</span>
             {room.blankCardsEnabled && <span>Blank Cards: On</span>}
             {room.buffsEnabled && <span>Buffs: On</span>}
@@ -185,7 +383,7 @@ export default function GameBoard() {
           {sortedPlayers.map((p: Player) => (
             <div
               key={p.id}
-              className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-sm ${
+              className={`group flex items-center justify-between px-2 py-1.5 rounded-lg text-sm ${
                 p.id === gameState?.myPlayerId ? 'bg-accent/10 ring-1 ring-accent/30' : 'bg-surface-light'
               }`}
             >
@@ -198,6 +396,18 @@ export default function GameBoard() {
                   {p.id === room.judgeId && <Crown size={12} className="inline text-accent ml-1" />}
                   {p.abductionRounds > 0 && <span className="text-[10px] text-purple-400 ml-1">(abducted)</span>}
                 </span>
+                {p.id !== gameState?.myPlayerId && p.isConnected && (
+                  <button
+                    onClick={() => {
+                      emit('start-vote-kick', p.id);
+                      playClick();
+                    }}
+                    className="opacity-0 group-hover:opacity-100 hover:opacity-100 focus:opacity-100 text-white/30 hover:text-red-400 transition-opacity ml-1"
+                    title={`Vote kick ${p.name}`}
+                  >
+                    <Ban size={12} />
+                  </button>
+                )}
                 <div className="flex gap-0.5">
                   {p.analProbeRounds > 0 && (
                     <span title="Anal Probe: extra cards" className="bg-pink-500/10 rounded px-1">
@@ -214,14 +424,12 @@ export default function GameBoard() {
                       <Minus size={10} className="text-red-400" />
                     </span>
                   )}
-                  {p.autoDrawEnabled && (
-                    <span title="Auto-draw enabled" className="bg-blue-500/10 rounded px-1">
-                      <Plus size={10} className="text-blue-400" />
-                    </span>
-                  )}
                 </div>
               </div>
-              <span className="font-bold shrink-0">{p.score}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-white/40">${p.currency.toFixed(2)}</span>
+                <span className="font-bold">{p.score}</span>
+              </div>
             </div>
           ))}
         </div>
@@ -235,6 +443,18 @@ export default function GameBoard() {
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
           <p className="text-white/60">Loading game...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Dealing phase — brief transition before playing starts
+  if (phase === 'dealing') {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          <p className="text-white/60">Dealing cards...</p>
         </div>
       </div>
     );
@@ -273,8 +493,8 @@ export default function GameBoard() {
     const sortedPlayers = [...room.players].sort((a, b) => b.score - a.score);
 
     return (
-      <div className="flex h-full flex-col items-center justify-center px-4 overflow-auto">
-        <div className="glass-card p-8 max-w-lg w-full flex flex-col gap-6 animate-bounce-in">
+      <div className="flex h-full flex-col items-center justify-start px-4 overflow-auto py-6">
+        <div className="glass-card p-8 max-w-lg w-full flex flex-col gap-6 animate-bounce-in max-h-[90vh] overflow-y-auto">
           <div className="text-center">
             <Trophy size={64} className="text-accent mx-auto mb-4" />
             <h2 className="text-4xl font-black mb-2">Game Over!</h2>
@@ -297,7 +517,23 @@ export default function GameBoard() {
                   <span className="font-semibold">{p.name}</span>
                   {p.id === winnerId && <Trophy size={16} className="text-accent" />}
                 </div>
-                <span className="text-xl font-bold">{p.score}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xl font-bold">{p.score}</span>
+                  {p.id !== gameState?.myPlayerId && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Report ${p.name} for inappropriate behavior?\n\nReports are taken VERY SERIOUSLY. Players using extreme slurs will be banned.`)) {
+                          emit('report-player', p.id, 'Inappropriate behavior');
+                          playClick();
+                        }
+                      }}
+                      className="text-white/20 hover:text-red-400 transition-colors"
+                      title={`Report ${p.name}`}
+                    >
+                      <Ban size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -349,13 +585,195 @@ export default function GameBoard() {
               </div>
             ))}
           </div>
+          <button
+            onClick={() => { emit('start-vote-end'); playClick(); }}
+            className="flex items-center gap-1.5 text-xs font-semibold text-white/60 hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10"
+            title="Vote to End Game"
+          >
+            <Ban size={14} />
+            Vote End
+          </button>
+          {myPlayer?.isHost && (
+            <button
+              onClick={() => { setHostSettingsOpen(!hostSettingsOpen); playClick(); }}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white/60 hover:text-accent transition-colors px-2 py-1 rounded-lg hover:bg-accent/10"
+              title="Host Settings"
+            >
+              <Settings size={14} />
+              Settings
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Host Settings Panel */}
+      {hostSettingsOpen && myPlayer?.isHost && room && (
+        <div className="absolute top-14 right-4 z-40 glass-card p-4 w-64 flex flex-col gap-3 animate-fade-in max-h-[80vh] overflow-y-auto">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-white/80">Host Settings</span>
+            <button onClick={() => setHostSettingsOpen(false)} className="text-white/40 hover:text-white">✕</button>
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={room.blankCardsEnabled}
+                onChange={(e) => emit('update-settings', { blankCardsEnabled: e.target.checked })}
+                className="accent-accent w-4 h-4"
+              />
+              <span className="text-sm text-white/80">Blank Cards</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={room.buffsEnabled}
+                onChange={(e) => emit('update-settings', { buffsEnabled: e.target.checked })}
+                className="accent-accent w-4 h-4"
+              />
+              <span className="text-sm text-white/80">Buffs & Debuffs</span>
+            </label>
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between text-xs text-white/60">
+              <label>Max Rounds</label>
+              <span>{room.maxRounds}</span>
+            </div>
+            <input
+              type="range"
+              min={3}
+              max={50}
+              step={1}
+              value={room.maxRounds}
+              onChange={(e) => emit('update-settings', { maxRounds: parseInt(e.target.value) })}
+              className="w-full accent-accent"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between text-xs text-white/60">
+              <label>Winning Score</label>
+              <span>{room.winningScore}</span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={20}
+              step={1}
+              value={room.winningScore}
+              onChange={(e) => emit('update-settings', { winningScore: parseInt(e.target.value) })}
+              className="w-full accent-accent"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between text-xs text-white/60">
+              <label>Re-Submit Tokens</label>
+              <span>{room.maxReSubmits}</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={10}
+              step={1}
+              value={room.maxReSubmits}
+              onChange={(e) => emit('update-settings', { maxReSubmits: parseInt(e.target.value) })}
+              className="w-full accent-accent"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Vote Kick Modal */}
+      {voteKickOpen && voteKickTargetId && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass-card p-6 max-w-sm w-full flex flex-col gap-4 animate-bounce-in">
+            <div className="text-center">
+              <Ban size={32} className="text-red-400 mx-auto mb-2" />
+              <h3 className="text-lg font-bold">Vote Kick</h3>
+              <p className="text-sm text-white/60">
+                {voteKickInitiatorName} wants to kick <span className="text-white font-semibold">{voteKickTargetName}</span>.
+              </p>
+              <p className="text-xs text-white/40 mt-1">Unanimous vote required. Target cannot vote.</p>
+            </div>
+            <div className="flex items-center justify-center">
+              <span className="text-xs text-white/40 font-mono">{voteKickTimer}s remaining</span>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  emit('cast-vote-kick', voteKickTargetId, false);
+                  setVoteKickOpen(false);
+                  playClick();
+                }}
+                className="btn-secondary flex-1"
+              >
+                No
+              </button>
+              <button
+                onClick={() => {
+                  emit('cast-vote-kick', voteKickTargetId, true);
+                  setVoteKickOpen(false);
+                  playClick();
+                }}
+                className="btn-primary flex-1 bg-red-500 hover:bg-red-600"
+              >
+                Yes, Kick
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Vote End Modal */}
+      {voteEndOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass-card p-6 max-w-sm w-full flex flex-col gap-4 animate-bounce-in">
+            <div className="text-center">
+              <Clock size={32} className="text-orange-400 mx-auto mb-2" />
+              <h3 className="text-lg font-bold">Vote to End Game</h3>
+              <p className="text-sm text-white/60">
+                {voteEndInitiatorName} wants to end the game early.
+              </p>
+              <p className="text-xs text-white/40 mt-1">2/3 majority required.</p>
+            </div>
+            <div className="flex items-center justify-center">
+              <span className="text-xs text-white/40 font-mono">{voteEndTimer}s remaining</span>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  emit('cast-vote-end', false);
+                  setVoteEndOpen(false);
+                  playClick();
+                }}
+                className="btn-secondary flex-1"
+              >
+                No, Keep Playing
+              </button>
+              <button
+                onClick={() => {
+                  emit('cast-vote-end', true);
+                  setVoteEndOpen(false);
+                  playClick();
+                }}
+                className="btn-primary flex-1 bg-orange-500 hover:bg-orange-600"
+              >
+                Yes, End Game
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Notification Toast */}
       {notification && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-accent text-black px-6 py-2 rounded-full font-bold text-sm animate-fade-in shadow-lg">
           {notification}
+        </div>
+      )}
+
+      {/* Hand Changed Toast */}
+      {handChange && (
+        <div className="absolute top-28 left-1/2 -translate-x-1/2 z-50 bg-yellow-500 text-black px-6 py-2 rounded-full font-bold text-sm animate-fade-in shadow-lg">
+          {handChange}
         </div>
       )}
 
@@ -407,36 +825,181 @@ export default function GameBoard() {
         </div>
       )}
 
-      {/* Main Game Area */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-8 px-4 py-6 overflow-auto">
+      {/* Customize Card Modal */}
+      {customizeModalOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass-card p-6 max-w-md w-full flex flex-col gap-4 animate-bounce-in max-h-[80vh] overflow-auto">
+            <div className="flex items-center gap-2 text-accent">
+              <PenLine size={20} />
+              <span className="font-bold">Customize a Card</span>
+            </div>
+            <p className="text-xs text-white/60">Pick a card from your hand and rewrite it.</p>
+
+            {/* Card Selection */}
+            <div className="flex flex-wrap justify-center gap-3">
+              {gameState.hand.map((card: CardType) => {
+                const isSelected = customizeCardId === card.id;
+                return (
+                  <Card
+                    key={card.id}
+                    card={card}
+                    onClick={() => {
+                      setCustomizeCardId(card.id);
+                      setCustomizeText('');
+                      playClick();
+                    }}
+                    selected={isSelected}
+                    size="compact"
+                  />
+                );
+              })}
+            </div>
+
+            {/* Text Input - shown after card selected */}
+            {customizeCardId && (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  value={customizeText}
+                  onChange={(e) => setCustomizeText(e.target.value)}
+                  placeholder="Type your new card text..."
+                  maxLength={120}
+                  rows={2}
+                  className="bg-surface-light border border-border rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors resize-none"
+                  autoFocus
+                />
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-white/40">{customizeText.length}/120</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setCustomizeModalOpen(false);
+                        setCustomizeCardId(null);
+                        setCustomizeText('');
+                      }}
+                      className="btn-secondary px-4 py-2 text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (customizeCardId && customizeText.trim()) {
+                          emit('customize-card', customizeCardId, customizeText.trim());
+                          setCustomizeModalOpen(false);
+                          setCustomizeCardId(null);
+                          setCustomizeText('');
+                          setNotification('Card customized!');
+                          setTimeout(() => setNotification(''), 2000);
+                        }
+                      }}
+                      disabled={!customizeText.trim()}
+                      className="btn-primary px-4 py-2 text-sm"
+                    >
+                      Customize
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Main Game Area + Chat */}
+      <div className="flex-1 flex flex-row overflow-hidden">
+        <div className="flex-1 flex flex-col items-center justify-center gap-8 px-4 py-6 overflow-auto min-w-0">
         {/* Playing phase — horizontal layout: black card left, hand center, scoreboard right */}
         {phase === 'playing' && !isJudge && blackCard && (
-          <div className="flex flex-row items-start justify-center gap-4 w-full h-full overflow-hidden px-4">
+          <div className="flex flex-row items-start justify-center gap-4 w-full min-h-0 px-4">
             {/* Black Card Column */}
             <div className="flex flex-col items-center gap-2 shrink-0 py-2">
               <div className="text-white/40 text-xs font-bold uppercase tracking-wider">Question Card</div>
               <Card card={blackCard} size="md" />
             </div>
 
+            {/* Effect Cards Column */}
+            {effectHand.length > 0 && !isJudge && (
+              <div className="flex flex-col items-center gap-2 shrink-0 py-2">
+                <div className="text-yellow-400 text-xs font-bold uppercase tracking-wider">Effect Cards</div>
+                <div className="flex flex-col gap-2">
+                  {effectHand.map((card: CardType) => {
+                    const isSelected = selectedEffectCardId === card.id;
+                    return (
+                      <Card
+                        key={card.id}
+                        card={card}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedEffectCardId(null);
+                          } else {
+                            setSelectedEffectCardId(card.id);
+                          }
+                          playClick();
+                        }}
+                        selected={isSelected}
+                        size="sm"
+                      />
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-white/40 text-center max-w-32">Select one to play alongside your answer</p>
+              </div>
+            )}
+
             {/* Abducted message */}
-            {myPlayer?.abductionRounds > 0 ? (
+            {(myPlayer?.abductionRounds ?? 0) > 0 ? (
               <div className="flex flex-col items-center justify-center gap-4 flex-1">
                 <div className="w-16 h-16 rounded-full bg-purple-500/20 flex items-center justify-center">
                   <span className="text-purple-400 text-2xl">🛸</span>
                 </div>
                 <p className="text-purple-400 font-bold text-lg">You have been abducted!</p>
-                <p className="text-white/40 text-sm">You will return in {myPlayer.abductionRounds} round{myPlayer.abductionRounds > 1 ? 's' : ''} with an anal probe.</p>
+                <p className="text-white/40 text-sm">You will return in {myPlayer?.abductionRounds ?? 0} round{(myPlayer?.abductionRounds ?? 0) > 1 ? 's' : ''} with an anal probe.</p>
               </div>
             ) : (
-            <div className="flex flex-col items-center gap-3 flex-1 min-w-0 h-full overflow-hidden">
-              <p className="text-white/60 shrink-0 pt-2">
-                Pick {pickCount > 1 ? `${pickCount} cards` : 'your best answer'}
-                {totalSelected > 0 && ` (${totalSelected}/${pickCount})`}
-              </p>
-              <div className="flex flex-wrap justify-center gap-3 overflow-y-auto px-2 pb-2">
+            <div className="flex flex-col items-center gap-3 flex-1 min-w-0 min-h-0">
+              {/* Already submitted — show status + re-submit option */}
+              {hasSubmitted && !reSubmitMode && (
+                <div className="flex flex-col items-center gap-3 animate-fade-in shrink-0 pt-4">
+                  <CheckCircle size={40} className="text-green-400" />
+                  <p className="text-white/60 font-semibold">You've submitted your answer</p>
+                  <div className="flex items-center gap-2 text-xs text-white/40">
+                    <span>Tokens: {myPlayer?.reSubmitTokens ?? 0}</span>
+                    {(myPlayer?.reSubmitCooldown ?? 0) > 0 && (
+                      <span className="text-red-400">Cooldown: {myPlayer?.reSubmitCooldown} rounds</span>
+                    )}
+                  </div>
+                  {canReSubmit && (
+                    <button
+                      onClick={() => {
+                        setReSubmitMode(true);
+                        setSelectedCardIds([]);
+                        setSelectedEffectCardId(null);
+                        setBlankSelections([]);
+                        playClick();
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-accent/40 text-accent text-sm hover:bg-accent/10 transition-colors"
+                    >
+                      <RefreshCw size={16} />
+                      Re-Submit Answer
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Re-submit mode or normal play */}
+              {(!hasSubmitted || reSubmitMode) && (
+                <>
+                  <p className="text-white/60 shrink-0 pt-2">
+                    {reSubmitMode && <span className="text-accent font-bold mr-1">[Re-Submit Mode]</span>}
+                    {(myPlayer?.doublePointsHandRounds ?? 0) > 0 && effectivePickCount === 1 && (
+                      <span className="text-yellow-400 font-bold mr-1">[Double Hand Active]</span>
+                    )}
+                    Pick {effectivePickCount > 1 ? `${effectivePickCount} cards` : 'your best answer'}
+                    {totalSelected > 0 && ` (${totalSelected}/${effectivePickCount})`}
+                  </p>
+                  <div className="grid grid-cols-5 gap-3 overflow-y-auto px-2 pb-2">
                 {gameState.hand.map((card: CardType) => {
                   const isSelected = selectedCardIds.includes(card.id);
-                  const canSelect = isSelected || totalSelected < pickCount;
+                  const canSelect = isSelected || totalSelected < effectivePickCount;
                   return (
                     <Card
                       key={card.id}
@@ -479,7 +1042,7 @@ export default function GameBoard() {
               )}
 
               {/* Use Blank Card Button */}
-              {room.blankCardsEnabled && blankCardsRemaining > 0 && totalSelected < pickCount && (
+              {room.blankCardsEnabled && blankCardsRemaining > 0 && totalSelected < effectivePickCount && (
                 <button
                   onClick={() => {
                     setBlankModalOpen(true);
@@ -492,11 +1055,29 @@ export default function GameBoard() {
                 </button>
               )}
 
-              {totalSelected === pickCount && (
-                <button onClick={handlePlayCard} className="btn-primary flex items-center gap-2 shrink-0 mb-2">
-                  <CheckCircle size={18} />
-                  Submit Answer
-                </button>
+              {totalSelected === effectivePickCount && (
+                <div className="flex items-center gap-2 shrink-0 mb-2">
+                  <button onClick={reSubmitMode ? handleReSubmit : handlePlayCard} className="btn-primary flex items-center gap-2">
+                    <CheckCircle size={18} />
+                    {reSubmitMode ? 'Confirm Re-Submit' : 'Submit Answer'}
+                  </button>
+                  {reSubmitMode && (
+                    <button
+                      onClick={() => {
+                        setReSubmitMode(false);
+                        setSelectedCardIds([]);
+                        setSelectedEffectCardId(null);
+                        setBlankSelections([]);
+                        playClick();
+                      }}
+                      className="btn-secondary px-3 py-2 text-sm"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              )}
+              </>
               )}
             </div>
             )}
@@ -507,7 +1088,7 @@ export default function GameBoard() {
 
         {/* Judge waiting + Judging phases — row layout with scoreboard */}
         {!(phase === 'playing' && !isJudge) && (phase === 'playing' || phase === 'judging') && (
-          <div className="flex flex-row items-start justify-center gap-4 w-full h-full overflow-hidden px-4">
+          <div className="flex flex-row items-start justify-center gap-4 w-full min-h-0 px-4">
             <div className="flex flex-col items-center justify-center gap-8 flex-1 min-w-0 overflow-y-auto py-6">
               {/* Black Card */}
               {blackCard && (
@@ -522,24 +1103,61 @@ export default function GameBoard() {
               {/* Submitted Cards (judging phase) */}
               {phase === 'judging' && isJudge && (
                 <div className="flex flex-col items-center gap-4">
-                  <p className="text-white/60">Pick the best answer:</p>
+                  <p className="text-white/60">
+                    {room.mode === 'two-votes' && room.firstWinnerSubmissionId
+                      ? 'Pick the second winner:'
+                      : room.mode === 'two-votes'
+                      ? 'Pick the first winner:'
+                      : 'Pick the best answer:'}
+                  </p>
+                  {room.mode === 'two-votes' && room.firstWinnerSubmissionId && (
+                    <p className="text-xs text-accent">
+                      First winner: {(() => {
+                        const firstSub = room.submittedCards.find((s) => s.submissionId === room.firstWinnerSubmissionId);
+                        const firstPlayer = firstSub ? room.players.find((p: Player) => p.id === firstSub.playerId) : null;
+                        return firstPlayer?.name || 'Unknown';
+                      })()}
+                    </p>
+                  )}
                   <div className="flex flex-wrap justify-center gap-4">
-                    {submittedCards.map((sub: { playerId: string; cards: CardType[] }) => {
+                    {submittedCards.map((sub: { playerId: string; cards: CardType[]; effectCard?: CardType; isReSubmit?: boolean; submissionId: string }) => {
                       const player = room.players.find((p: Player) => p.id === sub.playerId);
+                      const isFirstWinner = room.firstWinnerSubmissionId === sub.submissionId;
+                      const disabled = isFirstWinner;
                       return (
                         <button
-                          key={sub.playerId}
-                          onClick={() => handleJudgePick(sub.playerId)}
-                          className="flex flex-col items-center gap-2 group"
+                          key={sub.submissionId}
+                          onClick={() => {
+                            if (!disabled) handleJudgePick(sub.submissionId);
+                          }}
+                          className={`flex flex-col items-center gap-2 group ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                         >
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 items-center">
                             {sub.cards.map((c) => (
                               <Card key={c.id} card={c} size="md" />
                             ))}
+                            {sub.effectCard && (
+                              <div className="flex flex-col items-center gap-1">
+                                <Card card={sub.effectCard} size="sm" />
+                                <span className="text-[10px] text-yellow-400 font-bold uppercase">Effect</span>
+                              </div>
+                            )}
                           </div>
-                          <span className="text-xs text-white/40 group-hover:text-white transition-colors">
-                            by {player?.name || 'Unknown'}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            {sub.isReSubmit && (
+                              <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent font-bold uppercase">
+                                <Flag size={10} /> Re-Submit
+                              </span>
+                            )}
+                            {isFirstWinner && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 font-bold uppercase">
+                                1st Winner
+                              </span>
+                            )}
+                            <span className="text-xs text-white/40 group-hover:text-white transition-colors">
+                              by {player?.name || 'Unknown'}
+                            </span>
+                          </div>
                         </button>
                       );
                     })}
@@ -549,31 +1167,12 @@ export default function GameBoard() {
 
               {phase === 'judging' && !isJudge && (
                 <div className="flex flex-col items-center gap-4">
-                  {room.players.some((p: Player) => p.activeBuffs?.some((b) => b.type === 'reveal_all')) ? (
-                    <div className="flex flex-col items-center gap-4 animate-bounce-in">
-                      <p className="text-accent font-bold text-sm">Reveal All: Everyone can see the cards!</p>
-                      <div className="flex flex-wrap justify-center gap-4">
-                        {submittedCards.map((sub: { playerId: string; cards: CardType[] }) => {
-                          const player = room.players.find((p: Player) => p.id === sub.playerId);
-                          return (
-                            <div key={sub.playerId} className="flex flex-col items-center gap-1 opacity-70">
-                              <div className="flex gap-2">
-                                {sub.cards.map((c) => (
-                                  <Card key={c.id} card={c} size="sm" />
-                                ))}
-                              </div>
-                              <span className="text-[10px] text-white/40">{player?.name || 'Unknown'}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="w-16 h-16 border-4 border-accent/20 border-t-accent rounded-full animate-spin" />
-                      <p className="text-white/60">Waiting for the judge to pick a winner...</p>
-                    </>
-                  )}
+                  <div className="w-16 h-16 border-4 border-accent/20 border-t-accent rounded-full animate-spin" />
+                  <p className="text-white/60">
+                    {room.mode === 'two-votes' && room.firstWinnerSubmissionId
+                      ? 'Waiting for the judge to pick the second winner...'
+                      : 'Waiting for the judge to pick a winner...'}
+                  </p>
                 </div>
               )}
 
@@ -589,46 +1188,161 @@ export default function GameBoard() {
           </div>
         )}
 
-        {/* Reveal / Round End — centered, no scoreboard */}
-        {(phase === 'reveal' || phase === 'round-end') && winnerId && (
-          <div className="flex flex-col items-center gap-6 animate-bounce-in">
+        {/* Round End / Intermission */}
+        {phase === 'round-end' && (
+          <div className="flex flex-col items-center gap-6 animate-bounce-in w-full max-w-3xl mx-auto">
+            {/* Winner display */}
             <div className="text-center">
               <Trophy size={48} className="text-accent mx-auto mb-2" />
               <p className="text-2xl font-bold">
-                {room.players.find((p: Player) => p.id === winnerId)?.name} wins the round!
+                {room.mode === 'two-votes' && secondWinnerId
+                  ? `${room.players.find((p: Player) => p.id === winnerId)?.name} & ${room.players.find((p: Player) => p.id === secondWinnerId)?.name} win the round!`
+                  : `${room.players.find((p: Player) => p.id === winnerId)?.name} wins the round!`}
               </p>
-              <div className="flex flex-wrap justify-center gap-4 mt-4">
-                {submittedCards.map((sub: { playerId: string; cards: CardType[] }) => (
-                  <div key={sub.playerId} className={`flex gap-2 p-2 rounded-xl ${sub.playerId === winnerId ? 'bg-accent/20 ring-2 ring-accent' : ''}`}>
-                    {sub.cards.map((c) => (
-                      <Card key={c.id} card={c} size="md" />
-                    ))}
-                  </div>
-                ))}
-              </div>
+              {roundSummary && (
+                <p className="text-accent font-semibold mt-1">
+                  {roundSummary.currencyEarned[myPlayer?.name || ''] > 0
+                    ? `You earned $${roundSummary.currencyEarned[myPlayer?.name || ''].toFixed(2)} this round!`
+                    : ''}
+                </p>
+              )}
             </div>
 
+            {/* Scoreboard + Currency */}
             {finalScores && (
               <div className="flex flex-col gap-2 w-full max-w-md">
+                <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Scoreboard</div>
                 {Object.entries(finalScores)
                   .sort(([, a], [, b]) => b - a)
                   .map(([name, score]) => (
-                    <div key={name} className="flex justify-between px-4 py-2 bg-surface-light rounded-lg">
+                    <div key={name} className="flex justify-between px-4 py-2 bg-surface-light rounded-lg items-center">
                       <span className="font-semibold">{name}</span>
-                      <span className="font-bold">{score}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-white/40">${roundSummary?.currencyEarned[name]?.toFixed(2) ?? '0.00'}</span>
+                        <span className="font-bold">{score}</span>
+                      </div>
                     </div>
                   ))}
               </div>
             )}
 
-            {isJudge && phase === 'round-end' && (
-              <button onClick={handleNextRound} className="btn-primary">
-                Next Round
-              </button>
+            {/* Effects Used */}
+            {roundSummary && roundSummary.effectsUsed.length > 0 && (
+              <div className="flex flex-col gap-2 w-full max-w-md">
+                <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Effects Used</div>
+                <div className="flex flex-wrap gap-2">
+                  {roundSummary.effectsUsed.map((e, i) => (
+                    <span key={i} className="text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-400">
+                      {e.playerName}: {e.effectType.replace(/_/g, ' ')}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Shop Cards */}
+            {room.shopCards.length > 0 && !room.shopStockUsed && !hasContinued && (
+              <div className="flex flex-col gap-2 w-full max-w-md">
+                <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Shop — $5 each</div>
+                <div className="flex flex-wrap justify-center gap-3">
+                  {room.shopCards.map((card: CardType) => (
+                    <div key={card.id} className="flex flex-col items-center gap-2">
+                      <Card card={card} size="sm" />
+                      <button
+                        onClick={() => {
+                          emit('buy-shop-card', card.id, (success: boolean, remaining: number) => {
+                            if (success) {
+                              setNotification(`Bought effect card! $${remaining.toFixed(2)} remaining`);
+                              setTimeout(() => setNotification(''), 3000);
+                              playChime();
+                            } else {
+                              setNotification('Could not buy card. Check your funds or stock.');
+                              setTimeout(() => setNotification(''), 3000);
+                              playError();
+                            }
+                          });
+                          playClick();
+                        }}
+                        disabled={(myPlayer?.currency ?? 0) < 5}
+                        className="btn-primary text-xs px-3 py-1 disabled:opacity-40"
+                      >
+                        Buy ($5)
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-white/40 text-center">
+                  Your funds: ${(myPlayer?.currency ?? 0).toFixed(2)}
+                </p>
+              </div>
+            )}
+            {room.shopStockUsed && (
+              <p className="text-xs text-white/40">Shop stock sold out this round.</p>
+            )}
+
+            {/* Ready / Waiting */}
+            {!hasContinued ? (
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShopOpen(true);
+                      playClick();
+                    }}
+                    disabled={room.shopStockUsed || room.shopCards.length === 0}
+                    className="btn-secondary flex items-center gap-2"
+                  >
+                    <Zap size={16} />
+                    Open Shop
+                  </button>
+                  <button
+                    onClick={() => {
+                      emit('player-ready');
+                      setHasContinued(true);
+                      playClick();
+                    }}
+                    className="btn-primary flex items-center gap-2"
+                  >
+                    <CheckCircle size={16} />
+                    Continue
+                  </button>
+                </div>
+                {isJudge && (
+                  <button
+                    onClick={() => {
+                      emit('force-next-round');
+                      playClick();
+                    }}
+                    className="text-xs text-white/40 hover:text-white transition-colors"
+                  >
+                    Force Start Next Round
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                <p className="text-white/60">Waiting for other players to continue...</p>
+                <p className="text-xs text-white/40">
+                  {room.readyPlayerIds.length} / {room.players.filter((p: Player) => p.isConnected).length} ready
+                </p>
+                <div className="flex flex-col gap-1">
+                  {room.players.map((p: Player) => (
+                    <div key={p.id} className="flex items-center gap-2 text-xs">
+                      <div className={`w-2 h-2 rounded-full ${room.readyPlayerIds.includes(p.id) ? 'bg-green-500' : p.isConnected ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                      <span className={p.id === gameState?.myPlayerId ? 'text-accent font-bold' : 'text-white/60'}>
+                        {p.name} {room.readyPlayerIds.includes(p.id) ? '(ready)' : p.isConnected ? '(waiting)' : '(disconnected)'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         )}
       </div>
+      <ChatPanel myPlayerId={gameState?.myPlayerId} myPlayerName={myPlayer?.name} />
     </div>
+  </div>
   );
 }

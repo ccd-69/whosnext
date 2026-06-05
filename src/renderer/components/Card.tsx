@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Card as CardType } from '../../shared/types.js';
+import type { Card as CardType, CardEffectType } from '../../shared/types.js';
 import { PenLine } from 'lucide-react';
 
 interface CardProps {
@@ -9,6 +9,24 @@ interface CardProps {
   selected?: boolean;
   size?: 'sm' | 'compact' | 'md' | 'lg';
   revealed?: boolean;
+}
+
+function effectLabel(type: CardEffectType): string {
+  const labels: Record<CardEffectType, string> = {
+    double_points_win: 'Double Points',
+    point_drain: 'Point Drain',
+    customize_card: 'Customize',
+    hand_swap: 'Hand Swap',
+    exodia: 'EXODIA',
+    abduction: 'Abduction',
+    half_hand_discard: 'Half Discard',
+    forced_random: 'Force Random',
+    steal_card: 'Steal Card',
+    double_points_hand: 'Double Hand',
+    card_quality_down: 'Quality Down',
+    first_of_month: 'First of Month',
+  };
+  return labels[type] || type;
 }
 
 export default function Card({
@@ -58,7 +76,14 @@ export default function Card({
               </span>
             </div>
           ) : (
-            <span className="font-bold leading-snug">{card.text}</span>
+            <div className="flex flex-col gap-2 w-full">
+              {isEffect && card.effect && (
+                <span className="self-start text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-yellow-500 text-black">
+                  {effectLabel(card.effect.type)}
+                </span>
+              )}
+              <span className="font-bold leading-snug">{card.text}</span>
+            </div>
           )}
           {isBlack && card.pickCount != null && card.pickCount > 1 && (
             <span className="text-xs opacity-60 mt-2">Pick {card.pickCount}</span>

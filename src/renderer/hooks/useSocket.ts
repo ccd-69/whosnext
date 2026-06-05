@@ -14,14 +14,22 @@ async function initSocket(): Promise<AppSocket> {
 
   initPromise = (async () => {
     let url = 'http://localhost:3000';
-    if (typeof window !== 'undefined' && window.whosnextAPI?.getServerUrl) {
-      url = await window.whosnextAPI.getServerUrl();
+    if (typeof window !== 'undefined') {
+      if (window.whosnextAPI?.getServerUrl) {
+        url = await window.whosnextAPI.getServerUrl();
+      } else {
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (!isLocal) {
+          url = window.location.origin;
+        }
+      }
     }
     sharedUrl = url;
     const socket: AppSocket = io(url, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
+      withCredentials: true,
     });
     sharedSocket = socket;
     return socket;

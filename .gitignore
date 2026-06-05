@@ -27,3 +27,13 @@ Thumbs.db
 # Electron
 out/
 release/
+
+# Runtime data (users, leaderboards)
+data/
+
+# Screenshots / temp
+*.png
+*.jpg
+*.pdf
+*.txt
+fix-deck.cjs

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../hooks/useSocket.js';
-import { ArrowLeft, Copy, Users, Play, DoorOpen, Settings, Skull, Laugh, Flame } from 'lucide-react';
+import { ArrowLeft, Copy, Users, Play, DoorOpen, Settings, Skull, Laugh, Flame, Gamepad2, UtensilsCrossed, Dumbbell, Sword, Music, Globe } from 'lucide-react';
 import { playClick, playChime, playJoin } from '../audio/sound.js';
 import type { Room, GameMode, Player, GameState, CardPack } from '../../shared/types.js';
 
@@ -16,11 +16,13 @@ export default function Lobby() {
   const [room, setRoom] = useState<Room | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
-  const [maxPlayers, setMaxPlayers] = useState(8);
-  const [maxRounds, setMaxRounds] = useState(mode === 'quick-play' ? 10 : 20);
+  const [maxPlayers, setMaxPlayers] = useState(12);
+  const [maxRounds, setMaxRounds] = useState(mode === 'quick-play' ? 10 : mode === 'two-votes' ? 15 : 20);
+  const [startingCards, setStartingCards] = useState(10);
   const [blankCardsEnabled, setBlankCardsEnabled] = useState(false);
   const [cardPacks, setCardPacks] = useState<CardPack[]>(['base']);
   const [buffsEnabled, setBuffsEnabled] = useState(false);
+  const [maxReSubmits, setMaxReSubmits] = useState(2);
   const [showSettings, setShowSettings] = useState(false);
 
   const isHost = step === 'host';
@@ -51,8 +53,10 @@ export default function Lobby() {
       maxPlayers,
       maxRounds,
       blankCardsEnabled,
+      startingCards,
       cardPacks,
       buffsEnabled,
+      maxReSubmits,
     }, (newRoom: Room) => {
       setRoom(newRoom);
       setStep('host');
@@ -102,7 +106,7 @@ export default function Lobby() {
 
   if (isHost && room) {
     return (
-      <div className="flex h-full flex-col items-center justify-center px-4">
+      <div className="flex h-full flex-col items-center justify-center px-4 overflow-auto py-4">
         <div className="glass-card p-8 max-w-md w-full flex flex-col gap-6 animate-slide-up">
           <button
             onClick={() => {
@@ -140,8 +144,10 @@ export default function Lobby() {
             <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Settings</div>
             <div className="flex flex-wrap gap-1.5">
               <span className="text-xs px-2 py-0.5 rounded-full bg-surface-light text-white/70">Rounds: {room.maxRounds}</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-surface-light text-white/70">Hand: {room.startingCards}</span>
               {room.blankCardsEnabled && <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">Blank Cards</span>}
               {room.buffsEnabled && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">Buffs</span>}
+              {room.maxReSubmits !== 2 && <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">Re-Submits: {room.maxReSubmits}</span>}
               {room.cardPacks.map((pack) => (
                 <span key={pack} className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent capitalize">{pack}</span>
               ))}
@@ -171,7 +177,7 @@ export default function Lobby() {
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center px-4">
+    <div className="flex h-full flex-col items-center justify-center px-4 overflow-auto py-4">
       <div className="glass-card p-8 max-w-md w-full flex flex-col gap-6 animate-slide-up">
         <button
           onClick={() => {
@@ -184,7 +190,7 @@ export default function Lobby() {
           Back
         </button>
 
-        <h2 className="text-2xl font-bold">{mode === 'quick-play' ? 'Quick Play' : "Who's Next?"}</h2>
+        <h2 className="text-2xl font-bold">{mode === 'quick-play' ? 'Quick Play' : mode === 'two-votes' ? 'Two Votes' : "Who's Next?"}</h2>
 
         <div className="flex flex-col gap-2">
           <label className="text-sm text-white/60">Your Name</label>
@@ -232,7 +238,7 @@ export default function Lobby() {
                   <input
                     type="range"
                     min={3}
-                    max={16}
+                    max={12}
                     value={maxPlayers}
                     onChange={(e) => setMaxPlayers(parseInt(e.target.value))}
                     className="accent-accent w-full"
@@ -251,6 +257,22 @@ export default function Lobby() {
                     max={30}
                     value={maxRounds}
                     onChange={(e) => setMaxRounds(parseInt(e.target.value))}
+                    className="accent-accent w-full"
+                  />
+                </div>
+
+                {/* Starting Hand Size */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-sm text-white/60">
+                    <label>Starting Hand Size</label>
+                    <span className="font-bold text-white">{startingCards} cards</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={5}
+                    max={15}
+                    value={startingCards}
+                    onChange={(e) => setStartingCards(parseInt(e.target.value))}
                     className="accent-accent w-full"
                   />
                 </div>
@@ -277,6 +299,24 @@ export default function Lobby() {
                   <span className="text-sm text-white/80">Enable Buffs & Debuffs (random round effects)</span>
                 </label>
 
+                {/* Re-Submit Tokens */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-sm text-white/60">
+                    <label>Re-Submit Tokens (Vanilla = 2)</label>
+                    <span>{maxReSubmits}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={10}
+                    step={1}
+                    value={maxReSubmits}
+                    onChange={(e) => setMaxReSubmits(parseInt(e.target.value))}
+                    className="w-full accent-accent"
+                  />
+                  <p className="text-xs text-white/40">Max times a player can re-submit an answer per game. 3-round cooldown between uses.</p>
+                </div>
+
                 {/* Card Packs */}
                 <div className="flex flex-col gap-1.5">
                   <span className="text-sm text-white/60">Card Packs</span>
@@ -286,6 +326,12 @@ export default function Lobby() {
                       { key: 'nsfw' as CardPack, label: 'NSFW', icon: <Flame size={14} />, color: 'bg-pink-500/20 text-pink-400' },
                       { key: 'dark' as CardPack, label: 'Dark', icon: <Skull size={14} />, color: 'bg-red-500/20 text-red-400' },
                       { key: 'absurd' as CardPack, label: 'Absurd', icon: <Settings size={14} />, color: 'bg-purple-500/20 text-purple-400' },
+                      { key: 'geek' as CardPack, label: 'Geek', icon: <Gamepad2 size={14} />, color: 'bg-green-500/20 text-green-400' },
+                      { key: 'food' as CardPack, label: 'Food', icon: <UtensilsCrossed size={14} />, color: 'bg-orange-500/20 text-orange-400' },
+                      { key: 'sports' as CardPack, label: 'Sports', icon: <Dumbbell size={14} />, color: 'bg-yellow-500/20 text-yellow-400' },
+                      { key: 'fantasy' as CardPack, label: 'Fantasy', icon: <Sword size={14} />, color: 'bg-indigo-500/20 text-indigo-400' },
+                      { key: 'music' as CardPack, label: 'Music', icon: <Music size={14} />, color: 'bg-cyan-500/20 text-cyan-400' },
+                      { key: 'internet' as CardPack, label: 'Internet', icon: <Globe size={14} />, color: 'bg-teal-500/20 text-teal-400' },
                     ].map((pack) => (
                       <label
                         key={pack.key}

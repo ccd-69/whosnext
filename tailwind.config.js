@@ -1,18 +1,18 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ['./src/renderer/**/*.{js,jsx,ts,tsx}'],
+  content: ['./src/renderer/**/*.{js,jsx,ts,tsx}', './src/renderer/**/*.html'],
   theme: {
     extend: {
       fontFamily: {
         sans: ['Outfit', 'system-ui', 'sans-serif'],
       },
       colors: {
-        accent: '#f97316',
-        'accent-hover': '#ea580c',
-        bg: '#0a0a0f',
-        surface: '#13131f',
-        'surface-light': '#1a1a2e',
-        border: '#27273a',
+        accent: 'rgb(var(--color-accent) / <alpha-value>)',
+        'accent-hover': 'rgb(var(--color-accent-hover) / <alpha-value>)',
+        bg: 'rgb(var(--color-bg) / <alpha-value>)',
+        surface: 'rgb(var(--color-surface) / <alpha-value>)',
+        'surface-light': 'rgb(var(--color-surface-light) / <alpha-value>)',
+        border: 'rgb(var(--color-border) / <alpha-value>)',
       },
       animation: {
         'slide-up': 'slideUp 0.4s ease-out',
