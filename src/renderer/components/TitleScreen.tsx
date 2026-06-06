@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Clock, Users, ArrowRight, Sparkles, Vote, Trophy, ShoppingBag, Lock, Check, LogIn, UserPlus, LogOut, Shield } from 'lucide-react';
+import { Zap, Clock, Users, ArrowRight, Sparkles, Vote, Trophy, ShoppingBag, Lock, Check, LogIn, UserPlus, LogOut, Shield, User as UserIcon, Edit3 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket.js';
 import { playClick, playHover } from '../audio/sound.js';
 import type { LeaderboardEntry, User, Card } from '../../shared/types.js';
 import { EFFECT_CARDS } from '../../shared/deck.js';
 import { THEMES } from '../context/ThemeContext.js';
+import { getActiveGames, removeActiveGame } from '../utils/activeGames.js';
+import type { ActiveGame } from '../utils/activeGames.js';
 
 export default function TitleScreen() {
   const navigate = useNavigate();
@@ -28,10 +30,31 @@ export default function TitleScreen() {
   const [lifetimeBalance, setLifetimeBalance] = useState(0);
   const [unlocked, setUnlocked] = useState<string[]>([]);
   const [effectInventory, setEffectInventory] = useState<string[]>([]);
+  const [activeGames, setActiveGames] = useState<ActiveGame[]>([]);
+  const [showProfile, setShowProfile] = useState(false);
+  const [profileBio, setProfileBio] = useState('');
+  const [profileAvatar, setProfileAvatar] = useState('');
+  const [profileTab, setProfileTab] = useState<'overview' | 'recent' | 'inventory'>('overview');
+
+  useEffect(() => {
+    setActiveGames(getActiveGames());
+  }, []);
 
   useEffect(() => {
     if (!connected) return;
     emit('get-leaderboards');
+    if (user) {
+      emit('get-own-profile', (u: User | null) => {
+        if (u) {
+          setUser(u);
+          setLifetimeBalance(u.balance);
+          setUnlocked(u.unlockedThemes || []);
+          setEffectInventory(u.effectCardInventory || []);
+          setProfileBio(u.bio || '');
+          setProfileAvatar(u.avatarUrl || '');
+        }
+      });
+    }
     const unsub = on('leaderboards-data', (data) => {
       setLeaderboards(data);
     });
@@ -157,7 +180,12 @@ export default function TitleScreen() {
                   <Shield size={10} /> Dev
                 </span>
               )}
-              <span className="text-sm font-semibold text-white/80">{user.username}</span>
+              <button
+                onClick={() => { playClick(); setShowProfile(true); }}
+                className="flex items-center gap-1.5 text-sm font-semibold text-white/80 hover:text-accent transition-colors"
+              >
+                <UserIcon size={14} /> {user.username}
+              </button>
               <span className="text-xs text-accent font-bold">${user.balance.toFixed(2)}</span>
               <button onClick={handleLogout} className="flex items-center gap-1 text-xs text-white/40 hover:text-white transition-colors">
                 <LogOut size={14} /> Sign Out
@@ -204,6 +232,39 @@ export default function TitleScreen() {
             </button>
           )}
         </div>
+
+        {/* Resume Active Games */}
+        {activeGames.length > 0 && (
+          <div className="w-full flex flex-col gap-2 animate-slide-up">
+            <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Resume Game</div>
+            <div className="flex flex-col gap-2">
+              {activeGames.map((g) => (
+                <div key={g.roomCode} className="glass-card p-3 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="font-bold text-sm">{g.roomCode}</span>
+                    <span className="text-xs text-white/60 capitalize">{g.mode.replace(/-/g, ' ')}</span>
+                    <span className="text-[10px] text-white/40">Playing as {g.playerName}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { playClick(); navigate(`/game/${g.roomCode}`); }}
+                      className="btn-primary text-xs px-3 py-1.5"
+                    >
+                      Reconnect
+                    </button>
+                    <button
+                      onClick={() => { playClick(); removeActiveGame(g.roomCode); setActiveGames(getActiveGames()); }}
+                      className="text-white/40 hover:text-white transition-colors text-xs px-1"
+                      title="Remove"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Game Mode Cards */}
         <div className="flex flex-col sm:flex-row gap-4 w-full">
@@ -411,34 +472,187 @@ export default function TitleScreen() {
               <button onClick={() => setShowLeaderboard(false)} className="text-white/40 hover:text-white">✕</button>
             </div>
 
+            <div className="flex flex-col gap-2">
+              {lbData.length === 0 && <p className="text-white/40 text-center py-8">No leaderboard data yet. Play a game!</p>}
+              {lbData.length > 0 && (
+                <div className="grid grid-cols-[2rem_1fr_3.5rem_4.5rem] gap-2 px-4 py-1 text-xs font-bold uppercase tracking-wider text-white/40 border-b border-border">
+                  <span>#</span>
+                  <span>Player</span>
+                  <span className="text-right">Wins</span>
+                  <span className="text-right">$🤑</span>
+                </div>
+              )}
+              {lbData.map((entry, i) => (
+                <div key={entry.userId} className="grid grid-cols-[2rem_1fr_3.5rem_4.5rem] gap-2 px-4 py-2 bg-surface-light rounded-lg items-center">
+                  <span className={`font-bold ${i < 3 ? 'text-accent' : 'text-white/40'}`}>#{i + 1}</span>
+                  <span className="font-semibold truncate">{entry.username}</span>
+                  <span className="font-bold text-right">{entry.wins}</span>
+                  <span className="font-bold text-right text-accent">${entry.earned.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Modal */}
+      {showProfile && user && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass-card p-6 max-w-md w-full flex flex-col gap-4 animate-bounce-in max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserIcon size={24} className="text-accent" />
+                <h2 className="text-xl font-bold">Profile</h2>
+              </div>
+              <button onClick={() => setShowProfile(false)} className="text-white/40 hover:text-white">✕</button>
+            </div>
+
+            {/* Avatar + Header */}
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center text-xl font-bold text-accent border border-accent/30">
+                {profileAvatar ? (
+                  <img src={profileAvatar} alt="avatar" className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  user.username.slice(0, 2).toUpperCase()
+                )}
+              </div>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-lg">{user.username}</span>
+                  {user.role === 'dev' && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-accent/20 text-accent px-2 py-0.5 rounded-md">
+                      <Shield size={10} /> Dev
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs text-accent font-bold">${user.balance.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Tabs */}
             <div className="flex gap-2">
-              {(['wins', 'earned', 'spent'] as const).map((tab) => (
+              {(['overview', 'recent', 'inventory'] as const).map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => setLbTab(tab)}
+                  onClick={() => setProfileTab(tab)}
                   className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                    lbTab === tab ? 'bg-accent/20 text-accent' : 'bg-surface-light text-white/60 hover:text-white'
+                    profileTab === tab ? 'bg-accent/20 text-accent' : 'bg-surface-light text-white/60 hover:text-white'
                   }`}
                 >
-                  {tab === 'wins' ? 'Most Wins' : tab === 'earned' ? 'Most Earned' : 'Most Spent'}
+                  {tab === 'overview' ? 'Overview' : tab === 'recent' ? 'Recent Games' : 'Inventory'}
                 </button>
               ))}
             </div>
 
-            <div className="flex flex-col gap-2">
-              {lbData.length === 0 && <p className="text-white/40 text-center py-8">No leaderboard data yet. Play a game!</p>}
-              {lbData.map((entry, i) => (
-                <div key={entry.name} className="flex items-center justify-between px-4 py-2 bg-surface-light rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <span className={`font-bold w-6 ${i < 3 ? 'text-accent' : 'text-white/40'}`}>#{i + 1}</span>
-                    <span className="font-semibold">{entry.name}</span>
+            {profileTab === 'overview' && (
+              <div className="flex flex-col gap-4">
+                {/* Bio */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/60 flex items-center gap-1">
+                    <Edit3 size={12} /> Bio
+                  </label>
+                  <textarea
+                    value={profileBio}
+                    onChange={(e) => setProfileBio(e.target.value)}
+                    placeholder="Write a short bio..."
+                    maxLength={128}
+                    rows={2}
+                    className="bg-surface-light border border-border rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors resize-none text-sm"
+                  />
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-white/40">{profileBio.length}/128</span>
+                    <button
+                      onClick={() => {
+                        playClick();
+                        emit('update-profile', profileBio, profileAvatar, (success: boolean, updatedUser?: User) => {
+                          if (success && updatedUser) {
+                            setUser(updatedUser);
+                            setProfileBio(updatedUser.bio || '');
+                            setProfileAvatar(updatedUser.avatarUrl || '');
+                          }
+                        });
+                      }}
+                      className="btn-primary text-xs px-3 py-1"
+                    >
+                      Save Bio
+                    </button>
                   </div>
-                  <span className="font-bold">
-                    {lbTab === 'wins' ? entry.wins : lbTab === 'earned' ? `$${entry.earned.toFixed(2)}` : `$${entry.spent.toFixed(2)}`}
-                  </span>
                 </div>
-              ))}
-            </div>
+
+                {/* Avatar URL */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/60">Avatar URL <span className="text-white/30">(optional)</span></label>
+                  <input
+                    type="text"
+                    value={profileAvatar}
+                    onChange={(e) => setProfileAvatar(e.target.value)}
+                    placeholder="https://example.com/avatar.png"
+                    className="bg-surface-light border border-border rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors text-sm"
+                  />
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="glass-card p-3 text-center">
+                    <div className="text-2xl font-bold text-accent">{user.stats?.wins ?? 0}</div>
+                    <div className="text-xs text-white/40">Wins</div>
+                  </div>
+                  <div className="glass-card p-3 text-center">
+                    <div className="text-2xl font-bold text-accent">{user.totalGamesPlayed ?? 0}</div>
+                    <div className="text-xs text-white/40">Games Played</div>
+                  </div>
+                  <div className="glass-card p-3 text-center">
+                    <div className="text-2xl font-bold text-green-400">${(user.stats?.earned ?? 0).toFixed(2)}</div>
+                    <div className="text-xs text-white/40">Total Earned</div>
+                  </div>
+                  <div className="glass-card p-3 text-center">
+                    <div className="text-2xl font-bold text-orange-400">${(user.stats?.spent ?? 0).toFixed(2)}</div>
+                    <div className="text-xs text-white/40">Total Spent</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {profileTab === 'recent' && (
+              <div className="flex flex-col gap-2">
+                {(!user.recentGames || user.recentGames.length === 0) && (
+                  <p className="text-white/40 text-center py-8">No games played yet. Get in there!</p>
+                )}
+                {user.recentGames?.map((g) => (
+                  <div key={`${g.roomCode}-${g.date}`} className="glass-card p-3 flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold capitalize">{g.mode.replace(/-/g, ' ')}</span>
+                      <span className="text-xs text-white/40">{g.roomCode} &middot; {new Date(g.date).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold">{g.score} pts</span>
+                      {g.won && <span className="text-[10px] font-bold uppercase bg-accent/20 text-accent px-1.5 py-0.5 rounded">W</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {profileTab === 'inventory' && (
+              <div className="flex flex-col gap-3">
+                <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Themes Owned: {unlocked.length}</div>
+                <div className="flex flex-wrap gap-2">
+                  {THEMES.filter((t) => unlocked.includes(t.id)).map((t) => (
+                    <span key={t.id} className="text-xs px-2 py-1 rounded-full bg-accent/10 text-accent font-semibold">{t.name}</span>
+                  ))}
+                </div>
+                <div className="text-xs text-white/40 font-bold uppercase tracking-wider mt-2">Effect Cards: {effectInventory.length}</div>
+                <div className="flex flex-wrap gap-2">
+                  {effectInventory.length === 0 && <span className="text-xs text-white/40">No effect cards owned.</span>}
+                  {effectInventory.map((id, i) => {
+                    const card = EFFECT_CARDS.find((c) => c.id === id);
+                    return card ? (
+                      <span key={`${id}-${i}`} className="text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-400 font-semibold">{card.text}</span>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

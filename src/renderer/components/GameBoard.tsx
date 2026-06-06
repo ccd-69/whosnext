@@ -6,6 +6,7 @@ import ChatPanel from './ChatPanel.js';
 import type { GameState, GamePhase, Player, Card as CardType, CardPlay, CardEffectType } from '../../shared/types.js';
 import { ArrowLeft, Trophy, Clock, User, CheckCircle, Crown, Settings, PenLine, Zap, Eye, Ban, Shuffle, Plus, Minus, RefreshCw, Flag } from 'lucide-react';
 import { playClick, playSubmit, playChime, playWin, playError, playJoin } from '../audio/sound.js';
+import { removeActiveGame } from '../utils/activeGames.js';
 
 export default function GameBoard() {
   const { roomCode } = useParams();
@@ -42,6 +43,12 @@ export default function GameBoard() {
   const [roundSummary, setRoundSummary] = useState<import('../../shared/types.js').RoundSummary | null>(null);
   const [shopOpen, setShopOpen] = useState(false);
   const [hasContinued, setHasContinued] = useState(false);
+
+  // Mini Profile
+  const [miniProfilePlayer, setMiniProfilePlayer] = useState<Player | null>(null);
+
+  // Leaderboard ranks for scoreboard
+  const [globalRanks, setGlobalRanks] = useState<Record<string, { wins: number; rank: number }>>({});
 
   useEffect(() => {
     if (!connected) return;
@@ -109,6 +116,16 @@ export default function GameBoard() {
       setRoundSummary(summary);
       setHasContinued(false);
       setShopOpen(false);
+      // Refresh global ranks for scoreboard display
+      emit('get-leaderboards');
+    });
+
+    const unsubLeaderboards = on('leaderboards-data', (data) => {
+      const rankMap: Record<string, { wins: number; rank: number }> = {};
+      data.wins.forEach((entry, i) => {
+        rankMap[entry.username] = { wins: entry.wins, rank: i + 1 };
+      });
+      setGlobalRanks(rankMap);
     });
 
     const unsubGameOver = on('game-over', (scores: Record<string, number>, winner: string) => {
@@ -208,6 +225,7 @@ export default function GameBoard() {
       unsubJudgePicked();
       unsubRoundEnd();
       unsubRoundSummary();
+      unsubLeaderboards();
       unsubGameOver();
       unsubError();
       unsubNotify();
@@ -254,12 +272,17 @@ export default function GameBoard() {
 
   function handlePlayCard() {
     const totalSelections = selectedCardIds.length + blankSelections.length;
-    if (totalSelections === 0 || totalSelections !== effectivePickCount) return;
+    console.log('[Client] handlePlayCard', { totalSelections, effectivePickCount, selectedCardIds, blankSelections, selectedEffectCardId });
+    if (totalSelections === 0 || totalSelections !== effectivePickCount) {
+      console.log('[Client] handlePlayCard blocked: count mismatch');
+      return;
+    }
     const plays: CardPlay[] = [
       ...selectedCardIds.map((id) => ({ cardId: id })),
       ...blankSelections.map((text) => ({ cardId: '__blank__', customText: text })),
     ];
     emit('play-card', plays, selectedEffectCardId, (success: boolean) => {
+      console.log('[Client] play-card ack:', success);
       if (success) {
         setSelectedCardIds([]);
         setSelectedEffectCardId(null);
@@ -268,6 +291,10 @@ export default function GameBoard() {
         setNotification('Card played!');
         setTimeout(() => setNotification(''), 2000);
         playSubmit();
+      } else {
+        setNotification('Failed to play card — check console for details');
+        setTimeout(() => setNotification(''), 4000);
+        playError();
       }
     });
   }
@@ -310,6 +337,7 @@ export default function GameBoard() {
 
   function handleLeave() {
     emit('leave-room');
+    removeActiveGame(roomCode || '');
     navigate('/');
   }
 
@@ -391,11 +419,14 @@ export default function GameBoard() {
                 <div className={`w-2 h-2 rounded-full shrink-0 ${
                   p.abductionRounds > 0 ? 'bg-purple-500' : p.isConnected ? 'bg-green-500' : 'bg-red-500'
                 }`} />
-                <span className={`font-semibold truncate ${p.abductionRounds > 0 ? 'text-purple-400 line-through' : ''}`}>
+                <button
+                  onClick={() => { setMiniProfilePlayer(p); playClick(); }}
+                  className={`font-semibold truncate text-left hover:text-accent transition-colors ${p.abductionRounds > 0 ? 'text-purple-400 line-through' : ''}`}
+                >
                   {p.name}
                   {p.id === room.judgeId && <Crown size={12} className="inline text-accent ml-1" />}
                   {p.abductionRounds > 0 && <span className="text-[10px] text-purple-400 ml-1">(abducted)</span>}
-                </span>
+                </button>
                 {p.id !== gameState?.myPlayerId && p.isConnected && (
                   <button
                     onClick={() => {
@@ -570,9 +601,10 @@ export default function GameBoard() {
           </div>
           <div className="flex items-center gap-2">
             {room.players.map((p: Player) => (
-              <div
+              <button
                 key={p.id}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
+                onClick={() => { setMiniProfilePlayer(p); playClick(); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold hover:ring-1 hover:ring-accent/50 transition-all ${
                   p.id === room.judgeId
                     ? 'bg-accent/20 text-accent'
                     : 'bg-surface-light text-white/60'
@@ -582,7 +614,7 @@ export default function GameBoard() {
                 <User size={12} />
                 <span>{p.name}</span>
                 <span className="opacity-60">({p.score})</span>
-              </div>
+              </button>
             ))}
           </div>
           <button
@@ -758,6 +790,64 @@ export default function GameBoard() {
               >
                 Yes, End Game
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mini Profile Popover */}
+      {miniProfilePlayer && room && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setMiniProfilePlayer(null)}
+        >
+          <div className="glass-card p-5 max-w-xs w-full flex flex-col gap-3 animate-bounce-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-sm font-bold text-accent border border-accent/30">
+                  {miniProfilePlayer.username?.slice(0, 2).toUpperCase() || miniProfilePlayer.name.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-sm">{miniProfilePlayer.name}</span>
+                  {miniProfilePlayer.username && (
+                    <span className="text-[10px] text-white/40">@{miniProfilePlayer.username}</span>
+                  )}
+                </div>
+              </div>
+              <button onClick={() => setMiniProfilePlayer(null)} className="text-white/40 hover:text-white">✕</button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="glass-card p-2 text-center">
+                <div className="text-lg font-bold text-accent">{miniProfilePlayer.score}</div>
+                <div className="text-[10px] text-white/40">Score</div>
+              </div>
+              <div className="glass-card p-2 text-center">
+                <div className="text-lg font-bold text-green-400">${miniProfilePlayer.currency.toFixed(2)}</div>
+                <div className="text-[10px] text-white/40">Currency</div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-1">
+              {miniProfilePlayer.abductionRounds > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">Abducted</span>
+              )}
+              {miniProfilePlayer.analProbeRounds > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-400">Anal Probe</span>
+              )}
+              {miniProfilePlayer.doublePointsHandRounds > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400">Double Hand</span>
+              )}
+              {miniProfilePlayer.cardQualityDownRounds > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">Quality Down</span>
+              )}
+              {miniProfilePlayer.isHost && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent">Host</span>
+              )}
+              {!miniProfilePlayer.isConnected && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">Disconnected</span>
+              )}
             </div>
           </div>
         </div>
@@ -1212,17 +1302,30 @@ export default function GameBoard() {
             {finalScores && (
               <div className="flex flex-col gap-2 w-full max-w-md">
                 <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Scoreboard</div>
-                {Object.entries(finalScores)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([name, score]) => (
-                    <div key={name} className="flex justify-between px-4 py-2 bg-surface-light rounded-lg items-center">
-                      <span className="font-semibold">{name}</span>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-white/40">${roundSummary?.currencyEarned[name]?.toFixed(2) ?? '0.00'}</span>
-                        <span className="font-bold">{score}</span>
+                <div className="grid grid-cols-[2.5rem_1fr_3.5rem_4.5rem] gap-2 px-4 py-1 text-xs font-bold uppercase tracking-wider text-white/40 border-b border-border items-center">
+                  <span>#</span>
+                  <span>Player</span>
+                  <span className="text-right">Wins</span>
+                  <span className="text-right">$🤑</span>
+                </div>
+                {room.players
+                  .slice()
+                  .sort((a, b) => (finalScores[b.name] ?? 0) - (finalScores[a.name] ?? 0))
+                  .map((p) => {
+                    const rankInfo = globalRanks[p.name];
+                    return (
+                      <div key={p.id} className={`grid grid-cols-[2.5rem_1fr_3.5rem_4.5rem] gap-2 px-4 py-2 rounded-lg items-center ${
+                        p.id === gameState?.myPlayerId ? 'bg-accent/10 ring-1 ring-accent/30' : 'bg-surface-light'
+                      }`}>
+                        <span className={`font-bold text-xs ${(rankInfo?.rank ?? 999) <= 3 ? 'text-accent' : 'text-white/40'}`}>
+                          {rankInfo ? `#${rankInfo.rank}` : '—'}
+                        </span>
+                        <span className="font-semibold text-sm truncate">{p.name}</span>
+                        <span className="font-bold text-sm text-right">{rankInfo?.wins ?? 0}</span>
+                        <span className="font-bold text-sm text-right text-accent">${roundSummary?.currencyEarned[p.name]?.toFixed(2) ?? '0.00'}</span>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             )}
 
@@ -1283,30 +1386,17 @@ export default function GameBoard() {
             {/* Ready / Waiting */}
             {!hasContinued ? (
               <div className="flex flex-col items-center gap-3">
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setShopOpen(true);
-                      playClick();
-                    }}
-                    disabled={room.shopStockUsed || room.shopCards.length === 0}
-                    className="btn-secondary flex items-center gap-2"
-                  >
-                    <Zap size={16} />
-                    Open Shop
-                  </button>
-                  <button
-                    onClick={() => {
-                      emit('player-ready');
-                      setHasContinued(true);
-                      playClick();
-                    }}
-                    className="btn-primary flex items-center gap-2"
-                  >
-                    <CheckCircle size={16} />
-                    Continue
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    emit('player-ready');
+                    setHasContinued(true);
+                    playClick();
+                  }}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  <CheckCircle size={16} />
+                  Continue
+                </button>
                 {isJudge && (
                   <button
                     onClick={() => {

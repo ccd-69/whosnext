@@ -19,6 +19,11 @@ export interface DbUser {
     earned: number;
     spent: number;
   };
+  avatarUrl?: string;
+  bio?: string;
+  status: 'online' | 'away' | 'offline';
+  recentGames: import('../shared/types.js').RecentGame[];
+  totalGamesPlayed: number;
   createdAt: number;
 }
 
@@ -74,6 +79,9 @@ export async function registerUser(username: string, password: string, email?: s
     unlockedThemes: [],
     effectCardInventory: [],
     stats: { wins: 0, earned: 0, spent: 0 },
+    status: 'offline',
+    recentGames: [],
+    totalGamesPlayed: 0,
     createdAt: Date.now(),
   };
   data.users[userId] = user;
@@ -141,6 +149,7 @@ export async function recordUserStats(userId: string, wins: number, earned: numb
   if (!user) return;
   user.stats.wins += wins;
   user.stats.earned = Math.round((user.stats.earned + earned) * 100) / 100;
+  user.totalGamesPlayed += 1;
   await save(data);
 }
 
@@ -181,6 +190,44 @@ export async function seedDevUserIfEmpty(): Promise<void> {
   data.users[userId] = user;
   data.usernameIndex['ccd'] = userId;
   await save(data);
+}
+
+export async function updateProfile(userId: string, bio: string, avatarUrl: string): Promise<DbUser | null> {
+  const data = await load();
+  const user = data.users[userId];
+  if (!user) return null;
+  user.bio = bio.trim().slice(0, 128) || undefined;
+  user.avatarUrl = avatarUrl.trim() || undefined;
+  await save(data);
+  return { ...user, passwordHash: '' };
+}
+
+export async function getProfileByUsername(username: string): Promise<DbUser | null> {
+  const data = await load();
+  const key = username.toLowerCase().trim();
+  const userId = data.usernameIndex[key];
+  if (!userId) return null;
+  const user = data.users[userId];
+  return user ? { ...user, passwordHash: '', email: undefined } : null;
+}
+
+export async function addRecentGame(userId: string, game: import('../shared/types.js').RecentGame): Promise<void> {
+  const data = await load();
+  const user = data.users[userId];
+  if (!user) return;
+  user.recentGames.unshift(game);
+  if (user.recentGames.length > 20) user.recentGames.length = 20;
+  user.totalGamesPlayed += 1;
+  await save(data);
+}
+
+export async function getUserByUsername(username: string): Promise<DbUser | null> {
+  const data = await load();
+  const key = username.toLowerCase().trim();
+  const userId = data.usernameIndex[key];
+  if (!userId) return null;
+  const user = data.users[userId];
+  return user ? { ...user, passwordHash: '' } : null;
 }
 
 export async function getAllUsers(): Promise<DbUser[]> {

@@ -4,6 +4,7 @@ import { useSocket } from '../hooks/useSocket.js';
 import { ArrowLeft, Copy, Users, Play, DoorOpen, Settings, Skull, Laugh, Flame, Gamepad2, UtensilsCrossed, Dumbbell, Sword, Music, Globe } from 'lucide-react';
 import { playClick, playChime, playJoin } from '../audio/sound.js';
 import type { Room, GameMode, Player, GameState, CardPack } from '../../shared/types.js';
+import { addActiveGame } from '../utils/activeGames.js';
 
 export default function Lobby() {
   const { mode } = useParams<{ mode: GameMode }>();
@@ -60,6 +61,15 @@ export default function Lobby() {
     }, (newRoom: Room) => {
       setRoom(newRoom);
       setStep('host');
+      const me = newRoom.players[0];
+      addActiveGame({
+        roomCode: newRoom.code,
+        roomId: newRoom.id,
+        playerName: me.name,
+        mode: newRoom.mode,
+        sessionId: me.sessionId,
+        lastSeenAt: Date.now(),
+      });
     });
   }
 
@@ -71,6 +81,15 @@ export default function Lobby() {
       if (joinedRoom) {
         setRoom(joinedRoom);
         navigate(`/game/${joinedRoom.code}`);
+        const me = joinedRoom.players[joinedRoom.players.length - 1];
+        addActiveGame({
+          roomCode: joinedRoom.code,
+          roomId: joinedRoom.id,
+          playerName: me.name,
+          mode: joinedRoom.mode,
+          sessionId: me.sessionId,
+          lastSeenAt: Date.now(),
+        });
       } else {
         setError('Room not found or full. Check the code and try again.');
       }

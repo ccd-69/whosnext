@@ -21,6 +21,14 @@ export interface CardEffect {
   type: CardEffectType;
 }
 
+export interface RecentGame {
+  roomCode: string;
+  mode: string;
+  score: number;
+  date: number;
+  won: boolean;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -33,6 +41,11 @@ export interface User {
     earned: number;
     spent: number;
   };
+  avatarUrl?: string;
+  bio?: string;
+  status: 'online' | 'away' | 'offline';
+  recentGames: RecentGame[];
+  totalGamesPlayed: number;
 }
 
 export interface Player {
@@ -61,6 +74,7 @@ export interface Player {
   sessionId: string;                // persistent session ID for rejoins
   disconnectedAt?: number;        // timestamp when disconnected (for grace period)
   userId?: string;                 // linked user account id (if logged in)
+  username?: string;              // linked account username (if logged in)
 }
 
 export interface Card {
@@ -135,7 +149,8 @@ export interface RoundSummary {
 }
 
 export interface LeaderboardEntry {
-  name: string;
+  userId: string;
+  username: string;
   wins: number;
   earned: number;
   spent: number;
@@ -221,6 +236,9 @@ export interface ClientToServerEvents {
   'login': (username: string, password: string, cb: (success: boolean, message: string, user?: User) => void) => void;
   'buy-theme': (themeId: string, cb: (success: boolean, remainingBalance: number) => void) => void;
   'buy-effect-card': (cardId: string, cb: (success: boolean, remainingBalance: number) => void) => void;
+  'get-profile': (username: string, cb: (profile: User | null) => void) => void;
+  'update-profile': (bio: string, avatarUrl: string, cb: (success: boolean, user?: User) => void) => void;
+  'get-own-profile': (cb: (user: User | null) => void) => void;
 }
 
 export interface InterServerEvents {
@@ -230,4 +248,6 @@ export interface InterServerEvents {
 export interface SocketData {
   playerId: string;
   roomId: string;
+  userId?: string;
+  username?: string;
 }

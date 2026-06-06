@@ -5,7 +5,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import session from 'express-session';
 import { RoomManager } from './roomManager.js';
-import { registerUser, loginUser, spendUserBalance, unlockUserTheme, getUserById, addEffectCardToInventory, seedDevUserIfEmpty } from './userDb.js';
+import { registerUser, loginUser, spendUserBalance, unlockUserTheme, getUserById, addEffectCardToInventory, seedDevUserIfEmpty, updateProfile, getProfileByUsername } from './userDb.js';
+import { seedTestUsers, simulateGames } from './seed.js';
 import { EFFECT_CARDS } from '../shared/deck.js';
 import type { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from '../shared/types.js';
 
@@ -51,6 +52,23 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });
 
+// Dev-only seed endpoint (guarded by secret)
+app.post('/dev/seed', async (req, res) => {
+  const secret = process.env.DEV_SEED_SECRET;
+  if (!secret || req.headers['x-seed-secret'] !== secret) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+  try {
+    await seedTestUsers();
+    await simulateGames(io, 30);
+    res.json({ success: true, message: 'Seeded 8 test users and simulated 30 games.' });
+  } catch (err) {
+    console.error('[Seed] Error:', err);
+    res.status(500).json({ error: 'Seed failed', detail: String(err) });
+  }
+});
+
 // Serve the renderer build for web clients joining via room code
 const rendererPath = path.join(__dirname, '../../dist/renderer');
 app.use(express.static(rendererPath));
@@ -75,7 +93,7 @@ io.on('connection', (socket) => {
 
   socket.on('create-room', (opts, cb) => {
     console.log('[Server] create-room from', socket.id, 'name=', opts.hostName);
-    const room = roomManager.createRoom({ ...opts, userId: socket.data.userId }, socket.id);
+    const room = roomManager.createRoom({ ...opts, userId: socket.data.userId, username: socket.data.username }, socket.id);
     socket.join(room.id);
     socket.data.playerId = room.players[0].id;
     socket.data.roomId = room.id;
@@ -90,7 +108,7 @@ io.on('connection', (socket) => {
 
   socket.on('join-room', (code, playerName, cb) => {
     console.log('[Server] join-room from', socket.id, 'code=', code, 'name=', playerName);
-    const room = roomManager.joinRoom(code, playerName, socket.id, socket.data.userId);
+    const room = roomManager.joinRoom(code, playerName, socket.id, socket.data.userId, socket.data.username);
     if (room) {
       socket.join(room.id);
       const player = room.players.find((p) => p.socketId === socket.id);
@@ -125,8 +143,14 @@ io.on('connection', (socket) => {
   socket.on('play-card', (cardIds, effectCardId, cb) => {
     const roomId = socket.data.roomId;
     const playerId = socket.data.playerId;
-    if (!roomId || !playerId) return cb(false);
-    cb(roomManager.playCard(roomId, playerId, cardIds, effectCardId));
+    console.log('[Server] play-card from', socket.id, 'roomId=', roomId, 'playerId=', playerId, 'cards=', cardIds.length, 'effect=', effectCardId);
+    if (!roomId || !playerId) {
+      console.log('[Server] play-card blocked: missing roomId or playerId');
+      return cb(false);
+    }
+    const result = roomManager.playCard(roomId, playerId, cardIds, effectCardId);
+    console.log('[Server] play-card result:', result);
+    cb(result);
   });
 
   socket.on('judge-pick', (submissionId, cb) => {
@@ -191,11 +215,21 @@ io.on('connection', (socket) => {
   socket.on('request-state', () => {
     const roomId = socket.data.roomId;
     const playerId = socket.data.playerId;
-    if (!roomId || !playerId) return;
+    console.log('[Server] request-state from', socket.id, 'roomId=', roomId, 'playerId=', playerId);
+    if (!roomId || !playerId) {
+      console.log('[Server] request-state blocked: missing data');
+      return;
+    }
     const room = roomManager.getRoom(roomId);
-    if (!room) return;
+    if (!room) {
+      console.log('[Server] request-state blocked: room not found', roomId);
+      return;
+    }
     const player = room.players.find((p) => p.id === playerId);
-    if (!player) return;
+    if (!player) {
+      console.log('[Server] request-state blocked: player not found', playerId, 'in', room.players.map((p) => p.id));
+      return;
+    }
     roomManager.sendStateToPlayer(room, player);
   });
 
@@ -280,7 +314,8 @@ io.on('connection', (socket) => {
     try {
       const result = await registerUser(username, password, email || undefined);
       if (result.success && result.user) {
-        (socket.data as any).userId = result.user.id;
+        socket.data.userId = result.user.id;
+        socket.data.username = result.user.username;
         socket.emit('auth-success', result.user);
       } else {
         socket.emit('auth-error', result.error || 'Registration failed');
@@ -297,7 +332,8 @@ io.on('connection', (socket) => {
     try {
       const result = await loginUser(username, password);
       if (result.success && result.user) {
-        (socket.data as any).userId = result.user.id;
+        socket.data.userId = result.user.id;
+        socket.data.username = result.user.username;
         socket.emit('auth-success', result.user);
       } else {
         socket.emit('auth-error', result.error || 'Login failed');
@@ -311,7 +347,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('buy-theme', async (themeId, cb) => {
-    const userId = (socket.data as any).userId;
+    const userId = socket.data.userId;
     if (!userId) return cb(false, 0);
     const costMap: Record<string, number> = {
       cyberpunk: 150,
@@ -328,7 +364,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('buy-effect-card', async (cardId, cb) => {
-    const userId = (socket.data as any).userId;
+    const userId = socket.data.userId;
     if (!userId) return cb(false, 0);
     const user = await getUserById(userId);
     if (!user) return cb(false, 0);
@@ -342,6 +378,30 @@ io.on('connection', (socket) => {
       await addEffectCardToInventory(userId, cardId);
     }
     cb(result.success, result.remaining);
+  });
+
+  socket.on('get-profile', async (username, cb) => {
+    const profile = await getProfileByUsername(username);
+    cb(profile ? { ...profile, passwordHash: '' } : null);
+  });
+
+  socket.on('update-profile', async (bio, avatarUrl, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(false);
+    const updated = await updateProfile(userId, bio, avatarUrl);
+    if (updated) {
+      socket.emit('auth-success', updated);
+      cb(true, updated);
+    } else {
+      cb(false);
+    }
+  });
+
+  socket.on('get-own-profile', async (cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(null);
+    const user = await getUserById(userId);
+    cb(user ? { ...user, passwordHash: '' } : null);
   });
 
   socket.on('disconnect', () => {

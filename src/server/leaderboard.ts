@@ -35,42 +35,40 @@ async function load(): Promise<Record<string, LeaderboardEntry>> {
 async function save(data: Record<string, LeaderboardEntry>): Promise<void> {
   cache = data;
   await ensureDir();
-  await writeFile(DATA_FILE, JSON.stringify({ entries: data, version: 1 }, null, 2));
+  await writeFile(DATA_FILE, JSON.stringify({ entries: data, version: 2 }, null, 2));
 }
 
 export async function recordGameResults(
-  players: { name: string; score: number; currency: number; totalEarnedThisGame: number }[],
-  winnerId: string,
-  playerIdMap: Record<string, string>
+  players: { userId?: string; name: string; score: number; currency: number; totalEarnedThisGame: number }[],
+  winnerUserId?: string
 ): Promise<void> {
   const data = await load();
   for (const p of players) {
-    const key = p.name;
+    if (!p.userId) continue; // skip guests
+    const key = p.userId;
     if (!data[key]) {
-      data[key] = { name: p.name, wins: 0, earned: 0, spent: 0, balance: 0 };
+      data[key] = { userId: p.userId, username: p.name, wins: 0, earned: 0, spent: 0, balance: 0 };
     }
-    // Track earnings (total earned this game)
     data[key].earned += p.totalEarnedThisGame;
-    // Convert leftover currency at 25% to lifetime balance
     if (p.currency > 0) {
       const converted = Math.round(p.currency * 0.25 * 100) / 100;
       data[key].balance = Math.round((data[key].balance + converted) * 100) / 100;
     }
-    // Track wins
-    if (playerIdMap[winnerId] === p.name) {
+    if (p.userId === winnerUserId) {
       data[key].wins += 1;
     }
   }
   await save(data);
 }
 
-export async function recordSpend(name: string, amount: number): Promise<void> {
+export async function recordSpend(userId: string | undefined, username: string, amount: number): Promise<void> {
+  if (!userId) return;
   const data = await load();
-  if (!data[name]) {
-    data[name] = { name, wins: 0, earned: 0, spent: 0, balance: 0 };
+  if (!data[userId]) {
+    data[userId] = { userId, username, wins: 0, earned: 0, spent: 0, balance: 0 };
   }
-  data[name].spent = Math.round((data[name].spent + amount) * 100) / 100;
-  data[name].balance = Math.round((data[name].balance - amount) * 100) / 100;
+  data[userId].spent = Math.round((data[userId].spent + amount) * 100) / 100;
+  data[userId].balance = Math.round((data[userId].balance - amount) * 100) / 100;
   await save(data);
 }
 
@@ -88,7 +86,7 @@ export async function getLeaderboards(): Promise<{
   };
 }
 
-export async function getPlayerBalance(name: string): Promise<number> {
+export async function getPlayerBalance(userId: string): Promise<number> {
   const data = await load();
-  return data[name]?.balance ?? 0;
+  return data[userId]?.balance ?? 0;
 }

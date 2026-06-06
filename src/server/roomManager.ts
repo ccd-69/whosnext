@@ -1,6 +1,6 @@
 import { Room, Player, GameMode, GamePhase, Card, CardPlay, ChatMessage, CustomEmoji } from '../shared/types.js';
 import { getCardsForPacks, shuffleArray, EFFECT_CARDS } from '../shared/deck.js';
-import { recordGameResults, recordSpend, getLeaderboards, getPlayerBalance } from './leaderboard.js';
+import { recordGameResults, recordSpend, getLeaderboards } from './leaderboard.js';
 import { recordUserStats, updateUserBalance, getUserById } from './userDb.js';
 import type { Server as SocketIOServer } from 'socket.io';
 import type { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from '../shared/types.js';
@@ -52,6 +52,7 @@ export class RoomManager {
       cardPacks: import('../shared/types.js').CardPack[];
       buffsEnabled: boolean;
       userId?: string;
+      username?: string;
     },
     hostSocketId: string
   ): Room {
@@ -77,6 +78,7 @@ export class RoomManager {
       totalEarnedThisGame: 0,
       sessionId: crypto.randomUUID(),
       userId: opts.userId,
+      username: opts.username,
     };
     const room: Room = {
       id: roomId,
@@ -120,7 +122,7 @@ export class RoomManager {
     return room;
   }
 
-  joinRoom(code: string, playerName: string, socketId: string, userId?: string): Room | null {
+  joinRoom(code: string, playerName: string, socketId: string, userId?: string, username?: string): Room | null {
     const room = Array.from(this.rooms.values()).find((r) => r.code === code);
     if (!room) return null;
     if (room.players.length >= room.maxPlayers) return null;
@@ -147,6 +149,7 @@ export class RoomManager {
       totalEarnedThisGame: 0,
       sessionId: crypto.randomUUID(),
       userId,
+      username,
     };
     room.players.push(player);
     room.updatedAt = Date.now();
@@ -319,10 +322,13 @@ export class RoomManager {
     // Replenish white cards for all players
     this.dealCards(room, previousSubmissions);
 
-    // Judge rotation — skip abducted players
+    // Judge rotation — skip abducted and disconnected players
     let attempts = 0;
     let judgeIndex = (room.round - 1) % room.players.length;
-    while (room.players[judgeIndex]?.abductionRounds > 0 && attempts < room.players.length) {
+    while (
+      (room.players[judgeIndex]?.abductionRounds > 0 || !room.players[judgeIndex]?.isConnected) &&
+      attempts < room.players.length
+    ) {
       judgeIndex = (judgeIndex + 1) % room.players.length;
       attempts++;
     }
@@ -335,11 +341,12 @@ export class RoomManager {
 
   playCard(roomId: string, playerId: string, cards: CardPlay[], effectCardId?: string | null): boolean {
     const room = this.rooms.get(roomId);
-    if (!room || room.phase !== 'playing') return false;
-    if (playerId === room.judgeId) return false;
+    if (!room) { console.log('[RoomManager] playCard: room not found', roomId); return false; }
+    if (room.phase !== 'playing') { console.log('[RoomManager] playCard: phase is', room.phase); return false; }
+    if (playerId === room.judgeId) { console.log('[RoomManager] playCard: player is judge'); return false; }
 
     const player = room.players.find((p) => p.id === playerId);
-    if (!player) return false;
+    if (!player) { console.log('[RoomManager] playCard: player not found', playerId, 'in', room.players.map((p) => p.id)); return false; }
 
     // Abducted players cannot play
     if (player.abductionRounds > 0) {
@@ -368,7 +375,10 @@ export class RoomManager {
 
     const pickCount = room.blackCard?.pickCount || 1;
     const effectivePickCount = (player.doublePointsHandRounds > 0 && pickCount === 1) ? 1 : pickCount;
-    if (cards.length !== effectivePickCount) return false;
+    if (cards.length !== effectivePickCount) {
+      console.log('[RoomManager] playCard: card count mismatch', cards.length, '!=', effectivePickCount, 'pickCount=', pickCount, 'doubleRounds=', player.doublePointsHandRounds);
+      return false;
+    }
 
     const playedCards: Card[] = [];
     for (const play of cards) {
@@ -768,8 +778,8 @@ export class RoomManager {
 
     // Record leaderboard stats if eligible
     if (room.eligibleForLeaderboard) {
-      const playerIdMap: Record<string, string> = {};
-      room.players.forEach((p) => (playerIdMap[p.id] = p.name));
+      const winner = room.players.find((p) => p.id === winnerId);
+      const winnerUserId = winner?.userId;
 
       void (async () => {
         const nonDevPlayers = [];
@@ -783,13 +793,13 @@ export class RoomManager {
         if (nonDevPlayers.length > 0) {
           recordGameResults(
             nonDevPlayers.map((p) => ({
+              userId: p.userId,
               name: p.name,
               score: p.score,
               currency: p.currency,
               totalEarnedThisGame: p.totalEarnedThisGame,
             })),
-            winnerId,
-            playerIdMap
+            winnerUserId
           ).catch((err) => console.error('[Leaderboard] Failed to record:', err));
         }
       })();
@@ -807,6 +817,14 @@ export class RoomManager {
               const converted = Math.round(p.currency * 0.25 * 100) / 100;
               updateUserBalance(p.userId, converted).catch(() => {});
             }
+            const { addRecentGame } = await import('./userDb.js');
+            addRecentGame(p.userId, {
+              roomCode: room.code,
+              mode: room.mode,
+              score: p.score,
+              date: Date.now(),
+              won: p.id === winnerId,
+            }).catch(() => {});
           })();
         }
       }
@@ -882,7 +900,7 @@ export class RoomManager {
     }
 
     // Track lifetime spend
-    recordSpend(player.name, cost).catch((err) => console.error('[Leaderboard] Spend record failed:', err));
+    recordSpend(player.userId, player.name, cost).catch((err) => console.error('[Leaderboard] Spend record failed:', err));
 
     this.io.to(player.socketId).emit('hand-changed', `You bought a shop card!`);
     this.broadcastState(room);
@@ -1100,6 +1118,9 @@ export class RoomManager {
     const timerKey = `${roomId}:${playerId}`;
     const existing = this.disconnectTimers.get(timerKey);
     if (existing) clearTimeout(existing);
+
+    // In who's-next mode, players are never auto-removed on disconnect
+    if (room.mode === 'whos-next') return;
 
     const timer = setTimeout(() => {
       this.disconnectTimers.delete(timerKey);
