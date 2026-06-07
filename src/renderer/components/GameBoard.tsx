@@ -7,6 +7,7 @@ import type { GameState, GamePhase, Player, Card as CardType, CardPlay, CardEffe
 import { ArrowLeft, Trophy, Clock, User, CheckCircle, Crown, Settings, PenLine, Zap, Eye, Ban, Shuffle, Plus, Minus, RefreshCw, Flag, UserPlus } from 'lucide-react';
 import { playClick, playSubmit, playChime, playWin, playError, playJoin } from '../audio/sound.js';
 import { removeActiveGame } from '../utils/activeGames.js';
+import { EFFECT_CARDS as ALL_EFFECT_CARDS } from '../../shared/deck.js';
 
 export default function GameBoard() {
   const { roomCode } = useParams();
@@ -47,8 +48,29 @@ export default function GameBoard() {
   // Mini Profile
   const [miniProfilePlayer, setMiniProfilePlayer] = useState<Player | null>(null);
 
+  // Effect card selection (lobby only)
+  const [effectInventory, setEffectInventory] = useState<string[]>([]);
+  const [selectedEffectCards, setSelectedEffectCards] = useState<string[]>([]);
+
   // Leaderboard ranks for scoreboard
   const [globalRanks, setGlobalRanks] = useState<Record<string, { wins: number; rank: number }>>({});
+
+  const uniqueEffectCards = ALL_EFFECT_CARDS.reduce<CardType[]>((acc, card) => {
+    if (card.effect && !acc.find((c) => c.effect?.type === card.effect?.type)) {
+      acc.push(card);
+    }
+    return acc;
+  }, []);
+
+  useEffect(() => {
+    if (!connected) return;
+    // Load user's effect card inventory
+    emit('get-own-profile', (u: import('../../shared/types.js').User | null) => {
+      if (u) {
+        setEffectInventory(u.effectCardInventory || []);
+      }
+    });
+  }, [connected, emit]);
 
   useEffect(() => {
     if (!connected) return;
@@ -341,6 +363,24 @@ export default function GameBoard() {
     navigate('/');
   }
 
+  function toggleEffectCard(cardId: string) {
+    playClick();
+    setSelectedEffectCards((prev) => {
+      let next: string[];
+      if (prev.includes(cardId)) {
+        next = prev.filter((id) => id !== cardId);
+      } else if (prev.length < 2) {
+        next = [...prev, cardId];
+      } else {
+        return prev;
+      }
+      emit('set-effect-cards', next, (success: boolean) => {
+        if (!success) setSelectedEffectCards(prev);
+      });
+      return next;
+    });
+  }
+
   const room = gameState?.room;
   const myPlayer = room?.players.find((p: Player) => p.id === gameState?.myPlayerId);
   const isJudge = myPlayer?.id === room?.judgeId;
@@ -494,7 +534,7 @@ export default function GameBoard() {
   // Returned to lobby (not enough players, etc.)
   if (phase === 'lobby') {
     return (
-      <div className="flex h-full flex-col items-center justify-center px-4">
+      <div className="flex h-full flex-col items-center justify-center px-4 overflow-auto py-4">
         <div className="glass-card p-8 max-w-md w-full flex flex-col gap-6 animate-bounce-in">
           <div className="text-center">
             <h2 className="text-3xl font-black mb-2">Back to Lobby</h2>
@@ -508,6 +548,46 @@ export default function GameBoard() {
               </div>
             ))}
           </div>
+
+          {/* Effect Card Selection */}
+          <div className="glass-card p-3 flex flex-col gap-2">
+            <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Effect Cards ({selectedEffectCards.length}/2)</div>
+            {effectInventory.length === 0 ? (
+              <p className="text-white/40 text-xs text-center py-2">No effect cards in inventory</p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {uniqueEffectCards
+                  .filter((card) => effectInventory.includes(card.id))
+                  .map((card) => {
+                    const ownedCount = effectInventory.filter((id) => id === card.id).length;
+                    const isSelected = selectedEffectCards.includes(card.id);
+                    return (
+                      <button
+                        key={card.id}
+                        onClick={() => toggleEffectCard(card.id)}
+                        className={`flex items-center justify-between p-2 rounded-lg text-xs transition-all border ${
+                          isSelected
+                            ? 'border-accent bg-accent/10'
+                            : 'border-border bg-surface-light opacity-60 hover:opacity-100'
+                        }`}
+                        disabled={!isSelected && selectedEffectCards.length >= 2}
+                      >
+                        <span className="font-semibold truncate">{card.text}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-white/40">x{ownedCount}</span>
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                            isSelected ? 'border-accent bg-accent' : 'border-white/30'
+                          }`}>
+                            {isSelected && <span className="text-black text-[10px] font-bold">✓</span>}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-3">
             <button onClick={handleLeave} className="btn-primary flex-1">
               Main Menu

@@ -359,7 +359,7 @@ io.on('connection', (socket) => {
 
   socket.on('buy-theme', async (themeId, cb) => {
     const userId = socket.data.userId;
-    if (!userId) return cb(false, 0);
+    if (!userId) return cb(false, 0, 'Not authenticated. Please sign in again.');
     const costMap: Record<string, number> = {
       cyberpunk: 150,
       retro: 200,
@@ -368,27 +368,29 @@ io.on('connection', (socket) => {
     };
     const cost = costMap[themeId] ?? 150;
     const result = await spendUserBalance(userId, cost);
-    if (result.success) {
-      await unlockUserTheme(userId, themeId);
+    if (!result.success) {
+      return cb(false, result.remaining, `Not enough funds! You need $${cost.toFixed(2)}`);
     }
-    cb(result.success, result.remaining);
+    await unlockUserTheme(userId, themeId);
+    cb(true, result.remaining);
   });
 
   socket.on('buy-effect-card', async (cardId, cb) => {
     const userId = socket.data.userId;
-    if (!userId) return cb(false, 0);
+    if (!userId) return cb(false, 0, 'Not authenticated. Please sign in again.');
     const user = await getUserById(userId);
-    if (!user) return cb(false, 0);
+    if (!user) return cb(false, 0, 'User not found.');
     const template = EFFECT_CARDS.find((c) => c.id === cardId);
-    if (!template || !template.effect) return cb(false, user.balance);
+    if (!template || !template.effect) return cb(false, user.balance, 'Invalid effect card.');
     let cost = 7;
     if (template.effect.type === 'exodia') cost = 10;
     else if (['double_points_win', 'point_drain', 'card_quality_down', 'abduction'].includes(template.effect.type)) cost = 8;
     const result = await spendUserBalance(userId, cost);
-    if (result.success) {
-      await addEffectCardToInventory(userId, cardId);
+    if (!result.success) {
+      return cb(false, result.remaining, `Not enough funds! You need $${cost.toFixed(2)}`);
     }
-    cb(result.success, result.remaining);
+    await addEffectCardToInventory(userId, cardId);
+    cb(true, result.remaining);
   });
 
   socket.on('get-profile', async (username, cb) => {
@@ -413,6 +415,19 @@ io.on('connection', (socket) => {
     if (!userId) return cb(null);
     const user = await getUserById(userId);
     cb(user ? { ...user, passwordHash: '' } : null);
+  });
+
+  socket.on('identify', async (userId, cb) => {
+    const user = await getUserById(userId);
+    if (user) {
+      socket.data.userId = user.id;
+      socket.data.username = user.username;
+      onlineUsers.add(user.id);
+      await updateUserStatus(user.id, 'online');
+      if (cb) cb(true, { ...user, passwordHash: '' });
+    } else {
+      if (cb) cb(false);
+    }
   });
 
   socket.on('disconnect', async () => {
@@ -503,6 +518,14 @@ io.on('connection', (socket) => {
     if (!userId) return cb(false);
     await unblockUser(userId, targetUserId);
     cb(true);
+  });
+
+  socket.on('set-effect-cards', (cardIds, cb) => {
+    const roomId = socket.data.roomId;
+    const playerId = socket.data.playerId;
+    if (!roomId || !playerId) return cb(false);
+    const success = roomManager.setPlayerEffectCards(roomId, playerId, cardIds);
+    cb(success);
   });
 
   // DM handlers

@@ -102,6 +102,7 @@ export interface Player {
   disconnectedAt?: number;        // timestamp when disconnected (for grace period)
   userId?: string;                 // linked user account id (if logged in)
   username?: string;              // linked account username (if logged in)
+  selectedEffectCardIds: string[]; // effect cards chosen in lobby (max 2) to bring into game
 }
 
 export interface Card {
@@ -267,10 +268,11 @@ export interface ClientToServerEvents {
   'register': (username: string, password: string, email: string | undefined, cb: (success: boolean, message: string, user?: User) => void) => void;
   'login': (username: string, password: string, cb: (success: boolean, message: string, user?: User) => void) => void;
   'buy-theme': (themeId: string, cb: (success: boolean, remainingBalance: number) => void) => void;
-  'buy-effect-card': (cardId: string, cb: (success: boolean, remainingBalance: number) => void) => void;
+  'buy-effect-card': (cardId: string, cb: (success: boolean, remainingBalance: number, error?: string) => void) => void;
   'get-profile': (username: string, cb: (profile: User | null) => void) => void;
   'update-profile': (bio: string, avatarUrl: string, cb: (success: boolean, user?: User) => void) => void;
   'get-own-profile': (cb: (user: User | null) => void) => void;
+  'identify': (userId: string, cb?: (success: boolean, user?: User) => void) => void;
   'send-friend-request': (targetUsername: string, cb: (success: boolean, message?: string) => void) => void;
   'accept-friend-request': (requestId: string, cb: (success: boolean) => void) => void;
   'reject-friend-request': (requestId: string, cb: (success: boolean) => void) => void;
@@ -281,6 +283,7 @@ export interface ClientToServerEvents {
   'unblock-user': (targetUserId: string, cb: (success: boolean) => void) => void;
   'send-dm': (targetUserId: string, text: string, cb: (success: boolean) => void) => void;
   'get-dm-history': (targetUserId: string, cb: (messages: DMMessage[]) => void) => void;
+  'set-effect-cards': (cardIds: string[], cb: (success: boolean) => void) => void;
 }
 
 export interface InterServerEvents {

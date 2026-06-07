@@ -74,6 +74,7 @@ export default function TitleScreen() {
       setEffectInventory(u.effectCardInventory || []);
       setShowAuth(false);
       setAuthError('');
+      localStorage.setItem('whosnext_user_id', u.id);
       emit('get-friends', (f: FriendUser[]) => setFriends(f));
       emit('get-friend-requests', (r: FriendRequest[]) => setFriendRequests(r));
     });
@@ -136,6 +137,7 @@ export default function TitleScreen() {
     setActiveDmUserId(null);
     setDmMessages([]);
     localStorage.removeItem('whosnext_unlocked_themes');
+    localStorage.removeItem('whosnext_user_id');
   }
 
   function handleSendDM() {
@@ -153,7 +155,7 @@ export default function TitleScreen() {
       alert('Sign in to purchase themes!');
       return;
     }
-    emit('buy-theme', themeId, (success: boolean, remaining: number) => {
+    emit('buy-theme', themeId, (success: boolean, remaining: number, error?: string) => {
       if (success) {
         setLifetimeBalance(remaining);
         const next = [...unlocked, themeId];
@@ -161,7 +163,7 @@ export default function TitleScreen() {
         localStorage.setItem('whosnext_unlocked_themes', JSON.stringify(next));
         setUser((prev) => prev ? { ...prev, balance: remaining, unlockedThemes: [...(prev.unlockedThemes || []), themeId] } : null);
       } else {
-        alert(`Not enough funds! You need $${cost.toFixed(2)}`);
+        alert(error || `Not enough funds! You need $${cost.toFixed(2)}`);
       }
     });
   }
@@ -172,13 +174,13 @@ export default function TitleScreen() {
       alert('Sign in to purchase effect cards!');
       return;
     }
-    emit('buy-effect-card', cardId, (success: boolean, remaining: number) => {
+    emit('buy-effect-card', cardId, (success: boolean, remaining: number, error?: string) => {
       if (success) {
         setLifetimeBalance(remaining);
         setEffectInventory((prev) => [...prev, cardId]);
         setUser((prev) => prev ? { ...prev, balance: remaining, effectCardInventory: [...(prev.effectCardInventory || []), cardId] } : null);
       } else {
-        alert(`Not enough funds! You need $${cost.toFixed(2)}`);
+        alert(error || `Not enough funds! You need $${cost.toFixed(2)}`);
       }
     });
   }

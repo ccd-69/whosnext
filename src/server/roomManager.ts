@@ -79,6 +79,7 @@ export class RoomManager {
       sessionId: crypto.randomUUID(),
       userId: opts.userId,
       username: opts.username,
+      selectedEffectCardIds: [],
     };
     const room: Room = {
       id: roomId,
@@ -150,6 +151,7 @@ export class RoomManager {
       sessionId: crypto.randomUUID(),
       userId,
       username,
+      selectedEffectCardIds: [],
     };
     room.players.push(player);
     room.updatedAt = Date.now();
@@ -183,12 +185,12 @@ export class RoomManager {
       p.currency = 0;
       p.totalEarnedThisGame = 0;
     }
-    // Grant purchased effect cards from user inventory
+    // Grant selected effect cards from user inventory (max 2)
     for (const p of room.players) {
-      if (p.userId) {
+      if (p.userId && p.selectedEffectCardIds.length > 0) {
         const user = await getUserById(p.userId);
-        if (user && user.effectCardInventory.length > 0) {
-          for (const cardId of user.effectCardInventory) {
+        if (user) {
+          for (const cardId of p.selectedEffectCardIds.slice(0, 2)) {
             const template = EFFECT_CARDS.find((c) => c.id === cardId);
             if (template) {
               p.effectCards.push({ ...template, id: crypto.randomUUID() });
@@ -905,6 +907,15 @@ export class RoomManager {
     this.io.to(player.socketId).emit('hand-changed', `You bought a shop card!`);
     this.broadcastState(room);
     return { success: true, remainingCurrency: player.currency };
+  }
+
+  setPlayerEffectCards(roomId: string, playerId: string, cardIds: string[]): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room || room.phase !== 'lobby') return false;
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player) return false;
+    player.selectedEffectCardIds = cardIds.slice(0, 2);
+    return true;
   }
 
   forceNextRound(roomId: string, playerId: string): void {

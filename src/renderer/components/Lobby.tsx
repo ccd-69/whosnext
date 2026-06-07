@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../hooks/useSocket.js';
 import { ArrowLeft, Copy, Users, Play, DoorOpen, Settings, Skull, Laugh, Flame, Gamepad2, UtensilsCrossed, Dumbbell, Sword, Music, Globe } from 'lucide-react';
 import { playClick, playChime, playJoin } from '../audio/sound.js';
-import type { Room, GameMode, Player, GameState, CardPack } from '../../shared/types.js';
+import type { Room, GameMode, Player, GameState, CardPack, Card } from '../../shared/types.js';
+import { EFFECT_CARDS } from '../../shared/deck.js';
 import { addActiveGame } from '../utils/activeGames.js';
 
 export default function Lobby() {
@@ -25,13 +26,36 @@ export default function Lobby() {
   const [buffsEnabled, setBuffsEnabled] = useState(false);
   const [maxReSubmits, setMaxReSubmits] = useState(2);
   const [showSettings, setShowSettings] = useState(false);
+  const [effectInventory, setEffectInventory] = useState<string[]>([]);
+  const [selectedEffectCards, setSelectedEffectCards] = useState<string[]>([]);
 
   const isHost = step === 'host';
+
+  const uniqueEffectCards = EFFECT_CARDS.reduce<Card[]>((acc, card) => {
+    if (card.effect && !acc.find((c) => c.effect?.type === card.effect?.type)) {
+      acc.push(card);
+    }
+    return acc;
+  }, []);
+
+  useEffect(() => {
+    if (!connected) return;
+    // Load user's effect card inventory
+    emit('get-own-profile', (u: import('../../shared/types.js').User | null) => {
+      if (u) {
+        setEffectInventory(u.effectCardInventory || []);
+      }
+    });
+  }, [connected, emit]);
 
   useEffect(() => {
     if (!connected || step !== 'host') return;
     const unsubState = on('game-state', (state: GameState) => {
       setRoom(state.room);
+      const me = state.room.players.find((p) => p.id === state.myPlayerId);
+      if (me) {
+        setSelectedEffectCards(me.selectedEffectCardIds || []);
+      }
     });
     const unsubJoin = on('player-joined', () => {
       playJoin();
@@ -102,6 +126,27 @@ export default function Lobby() {
     if (room) {
       navigate(`/game/${room.code}`);
     }
+  }
+
+  function toggleEffectCard(cardId: string) {
+    playClick();
+    setSelectedEffectCards((prev) => {
+      let next: string[];
+      if (prev.includes(cardId)) {
+        next = prev.filter((id) => id !== cardId);
+      } else if (prev.length < 2) {
+        next = [...prev, cardId];
+      } else {
+        return prev; // max 2
+      }
+      emit('set-effect-cards', next, (success: boolean) => {
+        if (!success) {
+          // Revert on failure
+          setSelectedEffectCards(prev);
+        }
+      });
+      return next;
+    });
   }
 
   function copyRoomCode() {
@@ -180,6 +225,45 @@ export default function Lobby() {
                 <span className="font-semibold">{p.name} {p.isHost && <span className="text-accent text-xs">(Host)</span>}</span>
               </div>
             ))}
+          </div>
+
+          {/* Effect Card Selection */}
+          <div className="glass-card p-3 flex flex-col gap-2">
+            <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Effect Cards ({selectedEffectCards.length}/2)</div>
+            {effectInventory.length === 0 ? (
+              <p className="text-white/40 text-xs text-center py-2">No effect cards in inventory</p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {uniqueEffectCards
+                  .filter((card) => effectInventory.includes(card.id))
+                  .map((card) => {
+                    const ownedCount = effectInventory.filter((id) => id === card.id).length;
+                    const isSelected = selectedEffectCards.includes(card.id);
+                    return (
+                      <button
+                        key={card.id}
+                        onClick={() => toggleEffectCard(card.id)}
+                        className={`flex items-center justify-between p-2 rounded-lg text-xs transition-all border ${
+                          isSelected
+                            ? 'border-accent bg-accent/10'
+                            : 'border-border bg-surface-light opacity-60 hover:opacity-100'
+                        }`}
+                        disabled={!isSelected && selectedEffectCards.length >= 2}
+                      >
+                        <span className="font-semibold truncate">{card.text}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-white/40">x{ownedCount}</span>
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                            isSelected ? 'border-accent bg-accent' : 'border-white/30'
+                          }`}>
+                            {isSelected && <span className="text-black text-[10px] font-bold">✓</span>}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
           </div>
 
           <button

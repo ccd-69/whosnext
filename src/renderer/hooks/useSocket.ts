@@ -51,7 +51,14 @@ export function useSocket() {
       setServerUrl(sharedUrl);
       setConnected(socket.connected);
 
-      const onConnect = () => setConnected(true);
+      const onConnect = () => {
+        setConnected(true);
+        // Re-identify on reconnect so server restores socket.data.userId
+        const storedUserId = localStorage.getItem('whosnext_user_id');
+        if (storedUserId) {
+          socket.emit('identify', storedUserId);
+        }
+      };
       const onDisconnect = () => setConnected(false);
       const onError = (msg: string) => console.error('[Socket] Error:', msg);
 
