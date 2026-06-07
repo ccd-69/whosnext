@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Zap, Clock, Users, ArrowRight, Sparkles, Vote, Trophy, ShoppingBag, Lock, Check, LogIn, UserPlus, LogOut, Shield, User as UserIcon, Edit3 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket.js';
 import { playClick, playHover } from '../audio/sound.js';
-import type { LeaderboardEntry, User, Card, FriendUser, FriendRequest } from '../../shared/types.js';
+import type { LeaderboardEntry, User, Card, FriendUser, FriendRequest, DMMessage } from '../../shared/types.js';
 import { EFFECT_CARDS } from '../../shared/deck.js';
 import { THEMES } from '../context/ThemeContext.js';
 import { getActiveGames, removeActiveGame } from '../utils/activeGames.js';
@@ -39,6 +39,9 @@ export default function TitleScreen() {
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [friendAddUsername, setFriendAddUsername] = useState('');
   const [friendAddError, setFriendAddError] = useState('');
+  const [activeDmUserId, setActiveDmUserId] = useState<string | null>(null);
+  const [dmMessages, setDmMessages] = useState<DMMessage[]>([]);
+  const [dmInput, setDmInput] = useState('');
 
   useEffect(() => {
     setActiveGames(getActiveGames());
@@ -96,7 +99,13 @@ export default function TitleScreen() {
     const unsubFriendStatus = on('friend-status-update', (uid: string, status: 'online' | 'away' | 'offline') => {
       setFriends((prev) => prev.map((f) => f.userId === uid ? { ...f, status } : f));
     });
-    return () => { unsub(); unsubAuth(); unsubAuthErr(); unsubFriendReq(); unsubFriendAccepted(); unsubFriendRemoved(); unsubFriendStatus(); };
+    const unsubDM = on('dm-received', (msg: DMMessage) => {
+      setDmMessages((prev) => {
+        if (prev.find((m) => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    });
+    return () => { unsub(); unsubAuth(); unsubAuthErr(); unsubFriendReq(); unsubFriendAccepted(); unsubFriendRemoved(); unsubFriendStatus(); unsubDM(); };
   }, [connected, emit, on]);
 
   function handleAuth() {
@@ -122,7 +131,20 @@ export default function TitleScreen() {
     setUser(null);
     setLifetimeBalance(0);
     setUnlocked([]);
+    setFriends([]);
+    setFriendRequests([]);
+    setActiveDmUserId(null);
+    setDmMessages([]);
     localStorage.removeItem('whosnext_unlocked_themes');
+  }
+
+  function handleSendDM() {
+    if (!dmInput.trim() || !activeDmUserId || !user) return;
+    emit('send-dm', activeDmUserId, dmInput.trim(), (success: boolean) => {
+      if (success) {
+        setDmInput('');
+      }
+    });
   }
 
   function handleBuyTheme(themeId: string, cost: number) {
@@ -178,13 +200,15 @@ export default function TitleScreen() {
   const lbData = leaderboards?.[lbTab] || [];
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center relative overflow-y-auto">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-20 w-64 h-64 bg-accent/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-      </div>
+    <div className="flex h-full w-full relative overflow-hidden">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto relative">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-20 w-64 h-64 bg-accent/10 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+        </div>
 
-      <div className="relative z-10 flex flex-col items-center gap-6 px-4 max-w-2xl w-full">
+        <div className="relative z-10 flex flex-col items-center gap-6 px-4 max-w-2xl w-full">
         {/* Logo */}
         <div className="flex flex-col items-center gap-2">
           <div className="flex items-center gap-3">
@@ -209,16 +233,9 @@ export default function TitleScreen() {
               )}
               <button
                 onClick={() => { playClick(); setShowProfile(true); }}
-                className="flex items-center gap-2 text-sm font-semibold text-white/80 hover:text-accent transition-colors"
+                className="text-sm font-semibold text-white/80 hover:text-accent transition-colors"
               >
-                <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-xs font-bold text-accent border border-accent/30 overflow-hidden">
-                  {user.avatarUrl ? (
-                    <img src={user.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
-                  ) : (
-                    user.username.slice(0, 2).toUpperCase()
-                  )}
-                </div>
-                <span className="hidden sm:inline">{user.username}</span>
+                {user.username}
               </button>
               <span className="text-xs text-accent font-bold">${user.balance.toFixed(2)}</span>
               <button onClick={handleLogout} className="flex items-center gap-1 text-xs text-white/40 hover:text-white transition-colors">
@@ -397,6 +414,131 @@ export default function TitleScreen() {
           One player hosts on desktop. Everyone else joins via browser using a room code.
         </p>
       </div>
+      </div> {/* close main content area */}
+
+      {/* Right Sidebar */}
+      {user && (
+        <div className="w-64 border-l border-border flex flex-col shrink-0 bg-surface/40 backdrop-blur-sm z-20">
+          {/* User Header */}
+          <button
+            onClick={() => { playClick(); setShowProfile(true); }}
+            className="flex items-center gap-3 p-4 border-b border-border hover:bg-surface-light/50 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-sm font-bold text-accent border border-accent/30 overflow-hidden shrink-0">
+              {user.avatarUrl ? (
+                <img src={user.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+              ) : (
+                user.username.slice(0, 2).toUpperCase()
+              )}
+            </div>
+            <div className="flex flex-col items-start min-w-0">
+              <span className="font-bold text-sm truncate">{user.username}</span>
+              <span className="text-xs text-accent font-bold">${user.balance.toFixed(2)}</span>
+            </div>
+          </button>
+
+          {/* Sidebar Content */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {activeDmUserId ? (
+              /* DM Panel */
+              <div className="flex flex-col h-full">
+                {/* DM Header */}
+                <div className="flex items-center gap-2 p-3 border-b border-border">
+                  <button
+                    onClick={() => setActiveDmUserId(null)}
+                    className="text-white/40 hover:text-white transition-colors text-xs shrink-0"
+                  >
+                    ← Back
+                  </button>
+                  <span className="text-sm font-semibold truncate">
+                    {friends.find(f => f.userId === activeDmUserId)?.username || 'Friend'}
+                  </span>
+                </div>
+
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+                  {dmMessages.map((msg) => {
+                    const isMe = msg.senderId === user?.id;
+                    return (
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[85%] px-3 py-2 rounded-lg text-xs ${
+                          isMe ? 'bg-accent/20 text-accent' : 'bg-surface-light text-white/80'
+                        }`}>
+                          {msg.text}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Input */}
+                <div className="p-3 border-t border-border flex gap-2">
+                  <input
+                    type="text"
+                    value={dmInput}
+                    onChange={(e) => setDmInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && dmInput.trim()) {
+                        handleSendDM();
+                      }
+                    }}
+                    placeholder="Type a message..."
+                    maxLength={500}
+                    className="flex-1 bg-surface-light border border-border rounded-lg px-3 py-2 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors text-xs"
+                  />
+                  <button
+                    onClick={handleSendDM}
+                    disabled={!dmInput.trim()}
+                    className="btn-primary text-xs px-3 py-2 disabled:opacity-40"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Friends List */
+              <div className="flex flex-col overflow-y-auto p-3 gap-2">
+                <div className="text-xs text-white/40 font-bold uppercase tracking-wider mb-1">Friends ({friends.length})</div>
+                {friends.length === 0 && (
+                  <p className="text-white/40 text-xs text-center py-4">No friends yet. Send a request from your profile!</p>
+                )}
+                {friends.map((f) => (
+                  <button
+                    key={f.userId}
+                    onClick={() => {
+                      playClick();
+                      setActiveDmUserId(f.userId);
+                      emit('get-dm-history', f.userId, (msgs: DMMessage[]) => setDmMessages(msgs));
+                    }}
+                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-surface-light/50 transition-colors text-left w-full"
+                  >
+                    <div className="relative shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-xs font-bold text-accent">
+                        {f.avatarUrl ? (
+                          <img src={f.avatarUrl} alt="avatar" className="w-full h-full rounded-full object-cover" />
+                        ) : (
+                          f.username.slice(0, 2).toUpperCase()
+                        )}
+                      </div>
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-surface ${
+                        f.status === 'online' ? 'bg-green-500' : f.status === 'away' ? 'bg-yellow-500' : 'bg-gray-500'
+                      }`} />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-semibold truncate">{f.username}</span>
+                      <span className={`text-[10px] ${
+                        f.status === 'online' ? 'text-green-400' : f.status === 'away' ? 'text-yellow-400' : 'text-gray-400'
+                      }`}>
+                        {f.status === 'online' ? 'Online' : f.status === 'away' ? 'Away' : 'Offline'}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Auth Modal */}
       {showAuth && (

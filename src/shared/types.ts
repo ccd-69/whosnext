@@ -45,6 +45,13 @@ export interface FriendUser {
   status: 'online' | 'away' | 'offline';
 }
 
+export interface DMMessage {
+  id: string;
+  senderId: string;
+  text: string;
+  timestamp: number;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -209,6 +216,7 @@ export interface ServerToClientEvents {
   'friend-request-accepted': (friendUser: FriendUser) => void;
   'friend-removed': (userId: string) => void;
   'friend-status-update': (userId: string, status: 'online' | 'away' | 'offline') => void;
+  'dm-received': (message: DMMessage, fromUserId: string) => void;
 }
 
 export interface CardPlay {
@@ -271,6 +279,8 @@ export interface ClientToServerEvents {
   'get-friend-requests': (cb: (requests: FriendRequest[]) => void) => void;
   'block-user': (targetUserId: string, cb: (success: boolean) => void) => void;
   'unblock-user': (targetUserId: string, cb: (success: boolean) => void) => void;
+  'send-dm': (targetUserId: string, text: string, cb: (success: boolean) => void) => void;
+  'get-dm-history': (targetUserId: string, cb: (messages: DMMessage[]) => void) => void;
 }
 
 export interface InterServerEvents {

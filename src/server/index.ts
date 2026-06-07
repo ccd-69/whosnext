@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import session from 'express-session';
 import { RoomManager } from './roomManager.js';
 import { registerUser, loginUser, spendUserBalance, unlockUserTheme, getUserById, addEffectCardToInventory, seedDevUserIfEmpty, updateProfile, getProfileByUsername, updateUserStatus, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, blockUser, unblockUser, getFriendUsers, getPendingFriendRequests } from './userDb.js';
+import { sendDM, getDMHistory } from './dmDb.js';
 import { seedTestUsers, simulateGames } from './seed.js';
 import { EFFECT_CARDS } from '../shared/deck.js';
 import type { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from '../shared/types.js';
@@ -502,6 +503,30 @@ io.on('connection', (socket) => {
     if (!userId) return cb(false);
     await unblockUser(userId, targetUserId);
     cb(true);
+  });
+
+  // DM handlers
+  socket.on('send-dm', async (targetUserId, text, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(false);
+    if (!text.trim()) return cb(false);
+    try {
+      const message = await sendDM(userId, targetUserId, text);
+      // Emit to sender
+      socket.emit('dm-received', message, userId);
+      // Emit to target if they're online
+      io.emit('dm-received', message, userId);
+      cb(true);
+    } catch {
+      cb(false);
+    }
+  });
+
+  socket.on('get-dm-history', async (targetUserId, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb([]);
+    const messages = await getDMHistory(userId, targetUserId, 50);
+    cb(messages);
   });
 });
 
