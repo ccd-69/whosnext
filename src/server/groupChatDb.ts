@@ -155,3 +155,13 @@ export async function kickFromGroup(groupId: string, targetUserId: string): Prom
   await save(data);
   return true;
 }
+
+export async function addUserToGroup(groupId: string, userId: string, username: string, avatarUrl?: string): Promise<boolean> {
+  const data = await load();
+  const group = data.groups[groupId];
+  if (!group) return false;
+  if (group.members.some((m) => m.userId === userId)) return false;
+  group.members.push({ userId, username, avatarUrl, role: 'member' });
+  await save(data);
+  return true;
+}

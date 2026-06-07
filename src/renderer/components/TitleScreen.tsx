@@ -136,7 +136,14 @@ export default function TitleScreen() {
       setActiveGroupId(group.id);
       setGroupMessages([]);
     });
-    return () => { unsub(); unsubAuth(); unsubAuthErr(); unsubFriendReq(); unsubFriendAccepted(); unsubFriendRemoved(); unsubFriendStatus(); unsubDM(); unsubGroupMsg(); unsubGroupMembers(); unsubGroupCreated(); };
+    const unsubGroupInvite = on('group-invite-received', (group: GroupChat) => {
+      if (!group.members.find((m) => m.userId === user?.id)) return;
+      setGroups((prev) => {
+        if (prev.find((g) => g.id === group.id)) return prev;
+        return [...prev, { ...group, messages: [] }];
+      });
+    });
+    return () => { unsub(); unsubAuth(); unsubAuthErr(); unsubFriendReq(); unsubFriendAccepted(); unsubFriendRemoved(); unsubFriendStatus(); unsubDM(); unsubGroupMsg(); unsubGroupMembers(); unsubGroupCreated(); unsubGroupInvite(); };
   }, [connected, emit, on]);
 
   function handleAuth() {
@@ -238,6 +245,12 @@ export default function TitleScreen() {
           setGroupMessages([]);
         }
       }
+    });
+  }
+
+  function handleInviteToGroup(groupId: string, targetUserId: string) {
+    emit('invite-to-group', groupId, targetUserId, (success: boolean) => {
+      if (!success) alert('Failed to add friend to group.');
     });
   }
 
@@ -759,6 +772,35 @@ export default function TitleScreen() {
                                     <button onClick={() => handleKickFromGroup(group.id, m.userId)} className="text-[10px] text-red-400 hover:text-red-300">Kick</button>
                                   )}
                                 </div>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </details>
+                    </div>
+
+                    {/* Invite Friends */}
+                    <div className="border-t border-border p-2 shrink-0">
+                      <details className="text-xs">
+                        <summary className="text-white/40 cursor-pointer select-none">Invite Friends</summary>
+                        <div className="flex flex-col gap-1 mt-1 max-h-24 overflow-y-auto">
+                          {(() => {
+                            const group = groups.find(g => g.id === activeGroupId);
+                            if (!group) return null;
+                            const me = group.members.find(m => m.userId === user?.id);
+                            const canInvite = me?.role === 'owner' || me?.role === 'mod';
+                            if (!canInvite) return <span className="text-white/30">Only owner or moderators can invite.</span>;
+                            const notInGroup = friends.filter(f => !group.members.some(m => m.userId === f.userId));
+                            if (notInGroup.length === 0) return <span className="text-white/30">All friends are already in this group.</span>;
+                            return notInGroup.map((f) => (
+                              <div key={f.userId} className="flex items-center justify-between p-1 rounded hover:bg-surface-light/30">
+                                <span className="truncate">{f.username}</span>
+                                <button
+                                  onClick={() => handleInviteToGroup(group.id, f.userId)}
+                                  className="text-[10px] text-green-400 hover:text-green-300"
+                                >
+                                  Add
+                                </button>
                               </div>
                             ));
                           })()}

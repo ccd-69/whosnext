@@ -245,6 +245,7 @@ export interface ServerToClientEvents {
   'group-message-received': (groupId: string, message: GroupMessage) => void;
   'group-member-update': (groupId: string, members: GroupMember[]) => void;
   'group-created': (group: GroupChat) => void;
+  'group-invite-received': (group: GroupChat) => void;
 }
 
 export interface CardPlay {
@@ -321,6 +322,7 @@ export interface ClientToServerEvents {
   'demote-mod': (groupId: string, targetUserId: string, cb: (success: boolean) => void) => void;
   'kick-from-group': (groupId: string, targetUserId: string, cb: (success: boolean) => void) => void;
   'delete-group': (groupId: string, cb: (success: boolean) => void) => void;
+  'invite-to-group': (groupId: string, targetUserId: string, cb: (success: boolean) => void) => void;
 }
 
 export interface InterServerEvents {

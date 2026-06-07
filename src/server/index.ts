@@ -7,7 +7,7 @@ import session from 'express-session';
 import { RoomManager } from './roomManager.js';
 import { registerUser, loginUser, spendUserBalance, unlockUserTheme, getUserById, addEffectCardToInventory, seedDevUserIfEmpty, updateProfile, getProfileByUsername, updateUserStatus, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, blockUser, unblockUser, getFriendUsers, getPendingFriendRequests } from './userDb.js';
 import { sendDM, getDMHistory } from './dmDb.js';
-import { createGroup, joinGroup, leaveGroup, deleteGroup, sendGroupMessage, getGroupHistory, getMyGroups, promoteMember, demoteMod, kickFromGroup, getGroupById } from './groupChatDb.js';
+import { createGroup, joinGroup, leaveGroup, deleteGroup, sendGroupMessage, getGroupHistory, getMyGroups, promoteMember, demoteMod, kickFromGroup, getGroupById, addUserToGroup } from './groupChatDb.js';
 import { seedTestUsers, simulateGames } from './seed.js';
 import { EFFECT_CARDS } from '../shared/deck.js';
 import type { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from '../shared/types.js';
@@ -669,6 +669,29 @@ io.on('connection', (socket) => {
     const success = await deleteGroup(groupId);
     if (success) {
       io.emit('group-member-update', groupId, []);
+    }
+    cb(success);
+  });
+
+  socket.on('invite-to-group', async (groupId, targetUserId, cb) => {
+    const userId = socket.data.userId;
+    const username = socket.data.username;
+    if (!userId || !username) return cb(false);
+    const group = await getGroupById(groupId);
+    if (!group) return cb(false);
+    const actor = group.members.find((m) => m.userId === userId);
+    if (!actor || actor.role === 'member') return cb(false);
+    if (group.members.some((m) => m.userId === targetUserId)) return cb(false);
+    // Get target user's username/avatar from userDb
+    const targetUser = await getUserById(targetUserId);
+    if (!targetUser) return cb(false);
+    const success = await addUserToGroup(groupId, targetUserId, targetUser.username, targetUser.avatarUrl);
+    if (success) {
+      const updated = await getGroupById(groupId);
+      if (updated) {
+        io.emit('group-member-update', groupId, updated.members);
+        io.emit('group-invite-received', { ...updated, messages: [] });
+      }
     }
     cb(success);
   });
