@@ -4,7 +4,7 @@ import { useSocket } from '../hooks/useSocket.js';
 import Card from './Card.js';
 import ChatPanel from './ChatPanel.js';
 import type { GameState, GamePhase, Player, Card as CardType, CardPlay, CardEffectType } from '../../shared/types.js';
-import { ArrowLeft, Trophy, Clock, User, CheckCircle, Crown, Settings, PenLine, Zap, Eye, Ban, Shuffle, Plus, Minus, RefreshCw, Flag } from 'lucide-react';
+import { ArrowLeft, Trophy, Clock, User, CheckCircle, Crown, Settings, PenLine, Zap, Eye, Ban, Shuffle, Plus, Minus, RefreshCw, Flag, UserPlus } from 'lucide-react';
 import { playClick, playSubmit, playChime, playWin, playError, playJoin } from '../audio/sound.js';
 import { removeActiveGame } from '../utils/activeGames.js';
 
@@ -849,6 +849,25 @@ export default function GameBoard() {
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">Disconnected</span>
               )}
             </div>
+
+            {miniProfilePlayer.username && (
+              <button
+                onClick={() => {
+                  playClick();
+                  emit('send-friend-request', miniProfilePlayer.username, (success: boolean, message?: string) => {
+                    if (success) {
+                      setNotification(`Friend request sent to ${miniProfilePlayer.username}!`);
+                    } else {
+                      setNotification(message || 'Failed to send friend request');
+                    }
+                    setTimeout(() => setNotification(''), 4000);
+                  });
+                }}
+                className="btn-primary text-xs flex items-center justify-center gap-1.5 mt-1"
+              >
+                <UserPlus size={14} /> Add Friend
+              </button>
+            )}
           </div>
         </div>
       )}

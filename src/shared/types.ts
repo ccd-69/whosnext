@@ -29,6 +29,22 @@ export interface RecentGame {
   won: boolean;
 }
 
+export interface FriendRequest {
+  id: string;
+  fromId: string;
+  fromUsername: string;
+  toId: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  timestamp: number;
+}
+
+export interface FriendUser {
+  userId: string;
+  username: string;
+  avatarUrl?: string;
+  status: 'online' | 'away' | 'offline';
+}
+
 export interface User {
   id: string;
   username: string;
@@ -42,10 +58,14 @@ export interface User {
     spent: number;
   };
   avatarUrl?: string;
+  bannerUrl?: string;
   bio?: string;
   status: 'online' | 'away' | 'offline';
   recentGames: RecentGame[];
   totalGamesPlayed: number;
+  friends: string[]; // array of userIds
+  friendRequests: FriendRequest[];
+  blockedUsers: string[];
 }
 
 export interface Player {
@@ -185,6 +205,10 @@ export interface ServerToClientEvents {
   'leaderboards-data': (leaderboards: { wins: LeaderboardEntry[]; earned: LeaderboardEntry[]; spent: LeaderboardEntry[] }) => void;
   'auth-success': (user: User) => void;
   'auth-error': (message: string) => void;
+  'friend-request-received': (request: FriendRequest) => void;
+  'friend-request-accepted': (friendUser: FriendUser) => void;
+  'friend-removed': (userId: string) => void;
+  'friend-status-update': (userId: string, status: 'online' | 'away' | 'offline') => void;
 }
 
 export interface CardPlay {
@@ -239,6 +263,14 @@ export interface ClientToServerEvents {
   'get-profile': (username: string, cb: (profile: User | null) => void) => void;
   'update-profile': (bio: string, avatarUrl: string, cb: (success: boolean, user?: User) => void) => void;
   'get-own-profile': (cb: (user: User | null) => void) => void;
+  'send-friend-request': (targetUsername: string, cb: (success: boolean, message?: string) => void) => void;
+  'accept-friend-request': (requestId: string, cb: (success: boolean) => void) => void;
+  'reject-friend-request': (requestId: string, cb: (success: boolean) => void) => void;
+  'remove-friend': (targetUserId: string, cb: (success: boolean) => void) => void;
+  'get-friends': (cb: (friends: FriendUser[]) => void) => void;
+  'get-friend-requests': (cb: (requests: FriendRequest[]) => void) => void;
+  'block-user': (targetUserId: string, cb: (success: boolean) => void) => void;
+  'unblock-user': (targetUserId: string, cb: (success: boolean) => void) => void;
 }
 
 export interface InterServerEvents {

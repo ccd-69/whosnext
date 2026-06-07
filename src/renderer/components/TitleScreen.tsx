@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Zap, Clock, Users, ArrowRight, Sparkles, Vote, Trophy, ShoppingBag, Lock, Check, LogIn, UserPlus, LogOut, Shield, User as UserIcon, Edit3 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket.js';
 import { playClick, playHover } from '../audio/sound.js';
-import type { LeaderboardEntry, User, Card } from '../../shared/types.js';
+import type { LeaderboardEntry, User, Card, FriendUser, FriendRequest } from '../../shared/types.js';
 import { EFFECT_CARDS } from '../../shared/deck.js';
 import { THEMES } from '../context/ThemeContext.js';
 import { getActiveGames, removeActiveGame } from '../utils/activeGames.js';
@@ -34,7 +34,11 @@ export default function TitleScreen() {
   const [showProfile, setShowProfile] = useState(false);
   const [profileBio, setProfileBio] = useState('');
   const [profileAvatar, setProfileAvatar] = useState('');
-  const [profileTab, setProfileTab] = useState<'overview' | 'recent' | 'inventory'>('overview');
+  const [profileTab, setProfileTab] = useState<'overview' | 'recent' | 'inventory' | 'friends'>('overview');
+  const [friends, setFriends] = useState<FriendUser[]>([]);
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+  const [friendAddUsername, setFriendAddUsername] = useState('');
+  const [friendAddError, setFriendAddError] = useState('');
 
   useEffect(() => {
     setActiveGames(getActiveGames());
@@ -54,6 +58,8 @@ export default function TitleScreen() {
           setProfileAvatar(u.avatarUrl || '');
         }
       });
+      emit('get-friends', (f: FriendUser[]) => setFriends(f));
+      emit('get-friend-requests', (r: FriendRequest[]) => setFriendRequests(r));
     }
     const unsub = on('leaderboards-data', (data) => {
       setLeaderboards(data);
@@ -65,11 +71,32 @@ export default function TitleScreen() {
       setEffectInventory(u.effectCardInventory || []);
       setShowAuth(false);
       setAuthError('');
+      emit('get-friends', (f: FriendUser[]) => setFriends(f));
+      emit('get-friend-requests', (r: FriendRequest[]) => setFriendRequests(r));
     });
     const unsubAuthErr = on('auth-error', (msg: string) => {
       setAuthError(msg);
     });
-    return () => { unsub(); unsubAuth(); unsubAuthErr(); };
+    const unsubFriendReq = on('friend-request-received', (req: FriendRequest) => {
+      setFriendRequests((prev) => {
+        if (prev.find((r) => r.id === req.id)) return prev;
+        return [...prev, req];
+      });
+    });
+    const unsubFriendAccepted = on('friend-request-accepted', (friend: FriendUser) => {
+      setFriends((prev) => {
+        if (prev.find((f) => f.userId === friend.userId)) return prev;
+        return [...prev, friend];
+      });
+      setFriendRequests((prev) => prev.filter((r) => r.fromId !== friend.userId && r.toId !== friend.userId));
+    });
+    const unsubFriendRemoved = on('friend-removed', (removedId: string) => {
+      setFriends((prev) => prev.filter((f) => f.userId !== removedId));
+    });
+    const unsubFriendStatus = on('friend-status-update', (uid: string, status: 'online' | 'away' | 'offline') => {
+      setFriends((prev) => prev.map((f) => f.userId === uid ? { ...f, status } : f));
+    });
+    return () => { unsub(); unsubAuth(); unsubAuthErr(); unsubFriendReq(); unsubFriendAccepted(); unsubFriendRemoved(); unsubFriendStatus(); };
   }, [connected, emit, on]);
 
   function handleAuth() {
@@ -182,9 +209,16 @@ export default function TitleScreen() {
               )}
               <button
                 onClick={() => { playClick(); setShowProfile(true); }}
-                className="flex items-center gap-1.5 text-sm font-semibold text-white/80 hover:text-accent transition-colors"
+                className="flex items-center gap-2 text-sm font-semibold text-white/80 hover:text-accent transition-colors"
               >
-                <UserIcon size={14} /> {user.username}
+                <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-xs font-bold text-accent border border-accent/30 overflow-hidden">
+                  {user.avatarUrl ? (
+                    <img src={user.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    user.username.slice(0, 2).toUpperCase()
+                  )}
+                </div>
+                <span className="hidden sm:inline">{user.username}</span>
               </button>
               <span className="text-xs text-accent font-bold">${user.balance.toFixed(2)}</span>
               <button onClick={handleLogout} className="flex items-center gap-1 text-xs text-white/40 hover:text-white transition-colors">
@@ -531,7 +565,7 @@ export default function TitleScreen() {
 
             {/* Tabs */}
             <div className="flex gap-2">
-              {(['overview', 'recent', 'inventory'] as const).map((tab) => (
+              {(['overview', 'recent', 'inventory', 'friends'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setProfileTab(tab)}
@@ -539,7 +573,7 @@ export default function TitleScreen() {
                     profileTab === tab ? 'bg-accent/20 text-accent' : 'bg-surface-light text-white/60 hover:text-white'
                   }`}
                 >
-                  {tab === 'overview' ? 'Overview' : tab === 'recent' ? 'Recent Games' : 'Inventory'}
+                  {tab === 'overview' ? 'Overview' : tab === 'recent' ? 'Recent Games' : tab === 'inventory' ? 'Inventory' : `Friends (${friends.length})`}
                 </button>
               ))}
             </div>
@@ -650,6 +684,135 @@ export default function TitleScreen() {
                       <span key={`${id}-${i}`} className="text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-400 font-semibold">{card.text}</span>
                     ) : null;
                   })}
+                </div>
+              </div>
+            )}
+
+            {profileTab === 'friends' && (
+              <div className="flex flex-col gap-4">
+                {/* Add Friend */}
+                <div className="flex flex-col gap-2">
+                  <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Add Friend</div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={friendAddUsername}
+                      onChange={(e) => { setFriendAddUsername(e.target.value); setFriendAddError(''); }}
+                      placeholder="Enter username..."
+                      maxLength={20}
+                      className="flex-1 bg-surface-light border border-border rounded-xl px-4 py-2 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        playClick();
+                        if (!friendAddUsername.trim()) return;
+                        emit('send-friend-request', friendAddUsername.trim(), (success: boolean, message?: string) => {
+                          if (success) {
+                            setFriendAddUsername('');
+                            setFriendAddError('Request sent!');
+                          } else {
+                            setFriendAddError(message || 'Failed to send request');
+                          }
+                        });
+                      }}
+                      className="btn-primary text-xs px-3 py-2"
+                    >
+                      <UserPlus size={14} /> Add
+                    </button>
+                  </div>
+                  {friendAddError && (
+                    <p className={`text-xs ${friendAddError.includes('sent') ? 'text-green-400' : 'text-red-400'}`}>{friendAddError}</p>
+                  )}
+                </div>
+
+                {/* Friend Requests */}
+                {friendRequests.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Friend Requests ({friendRequests.length})</div>
+                    <div className="flex flex-col gap-2">
+                      {friendRequests.map((req) => (
+                        <div key={req.id} className="glass-card p-3 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-xs font-bold text-accent">
+                              {req.fromUsername.slice(0, 2).toUpperCase()}
+                            </div>
+                            <span className="text-sm font-semibold">{req.fromUsername}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                playClick();
+                                emit('accept-friend-request', req.id, (success: boolean) => {
+                                  if (success) {
+                                    setFriendRequests((prev) => prev.filter((r) => r.id !== req.id));
+                                    emit('get-friends', (f: FriendUser[]) => setFriends(f));
+                                  }
+                                });
+                              }}
+                              className="btn-primary text-xs px-2 py-1"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => {
+                                playClick();
+                                emit('reject-friend-request', req.id, (success: boolean) => {
+                                  if (success) setFriendRequests((prev) => prev.filter((r) => r.id !== req.id));
+                                });
+                              }}
+                              className="text-xs text-white/40 hover:text-red-400 transition-colors px-2 py-1"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Friends List */}
+                <div className="flex flex-col gap-2">
+                  <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Friends ({friends.length})</div>
+                  {friends.length === 0 && <p className="text-white/40 text-sm text-center py-4">No friends yet. Send a request above!</p>}
+                  <div className="flex flex-col gap-2">
+                    {friends.map((f) => (
+                      <div key={f.userId} className="glass-card p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="relative">
+                            <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-xs font-bold text-accent">
+                              {f.avatarUrl ? (
+                                <img src={f.avatarUrl} alt="avatar" className="w-full h-full rounded-full object-cover" />
+                              ) : (
+                                f.username.slice(0, 2).toUpperCase()
+                              )}
+                            </div>
+                            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-surface ${
+                              f.status === 'online' ? 'bg-green-500' : f.status === 'away' ? 'bg-yellow-500' : 'bg-gray-500'
+                            }`} />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-semibold">{f.username}</span>
+                            <span className={`text-[10px] ${f.status === 'online' ? 'text-green-400' : f.status === 'away' ? 'text-yellow-400' : 'text-gray-400'}`}>
+                              {f.status === 'online' ? 'Online' : f.status === 'away' ? 'Away' : 'Offline'}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            playClick();
+                            emit('remove-friend', f.userId, (success: boolean) => {
+                              if (success) setFriends((prev) => prev.filter((fr) => fr.userId !== f.userId));
+                            });
+                          }}
+                          className="text-white/30 hover:text-red-400 transition-colors text-xs"
+                          title="Remove friend"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

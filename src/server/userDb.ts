@@ -20,10 +20,14 @@ export interface DbUser {
     spent: number;
   };
   avatarUrl?: string;
+  bannerUrl?: string;
   bio?: string;
   status: 'online' | 'away' | 'offline';
   recentGames: import('../shared/types.js').RecentGame[];
   totalGamesPlayed: number;
+  friends: string[];
+  friendRequests: import('../shared/types.js').FriendRequest[];
+  blockedUsers: string[];
   createdAt: number;
 }
 
@@ -82,6 +86,9 @@ export async function registerUser(username: string, password: string, email?: s
     status: 'offline',
     recentGames: [],
     totalGamesPlayed: 0,
+    friends: [],
+    friendRequests: [],
+    blockedUsers: [],
     createdAt: Date.now(),
   };
   data.users[userId] = user;
@@ -185,6 +192,9 @@ export async function seedDevUserIfEmpty(): Promise<void> {
     unlockedThemes: ['cyber', 'arcade', 'matrix', 'aurora', 'space', 'party', 'spooky', 'ember', 'glitch', 'holo', 'synthwave', 'quantum', 'nebula', 'midnight', 'gold'],
     effectCardInventory: [],
     stats: { wins: 0, earned: 0, spent: 0 },
+    friends: [],
+    friendRequests: [],
+    blockedUsers: [],
     createdAt: Date.now(),
   };
   data.users[userId] = user;
@@ -228,6 +238,152 @@ export async function getUserByUsername(username: string): Promise<DbUser | null
   if (!userId) return null;
   const user = data.users[userId];
   return user ? { ...user, passwordHash: '' } : null;
+}
+
+export async function updateUserStatus(userId: string, status: 'online' | 'away' | 'offline'): Promise<void> {
+  const data = await load();
+  const user = data.users[userId];
+  if (!user) return;
+  user.status = status;
+  await save(data);
+}
+
+export async function sendFriendRequest(fromId: string, targetUsername: string): Promise<{ success: boolean; request?: import('../shared/types.js').FriendRequest; error?: string }> {
+  const data = await load();
+  const fromUser = data.users[fromId];
+  if (!fromUser) return { success: false, error: 'Sender not found.' };
+
+  const key = targetUsername.toLowerCase().trim();
+  const toId = data.usernameIndex[key];
+  if (!toId) return { success: false, error: 'User not found.' };
+  if (toId === fromId) return { success: false, error: 'Cannot friend yourself.' };
+
+  const toUser = data.users[toId];
+  if (!toUser) return { success: false, error: 'User not found.' };
+
+  // Check if already friends
+  if (fromUser.friends.includes(toId)) return { success: false, error: 'Already friends.' };
+
+  // Check if already blocked
+  if (fromUser.blockedUsers.includes(toId)) return { success: false, error: 'You have blocked this user.' };
+  if (toUser.blockedUsers.includes(fromId)) return { success: false, error: 'This user has blocked you.' };
+
+  // Check for existing request (either direction)
+  const existing = fromUser.friendRequests.find((r) => (r.fromId === fromId && r.toId === toId) || (r.fromId === toId && r.toId === fromId));
+  if (existing) {
+    if (existing.status === 'pending') return { success: false, error: 'Friend request already pending.' };
+    if (existing.status === 'accepted') return { success: false, error: 'Already friends.' };
+  }
+
+  const request: import('../shared/types.js').FriendRequest = {
+    id: crypto.randomUUID(),
+    fromId,
+    fromUsername: fromUser.username,
+    toId,
+    status: 'pending',
+    timestamp: Date.now(),
+  };
+
+  fromUser.friendRequests.push(request);
+  toUser.friendRequests.push(request);
+  await save(data);
+  return { success: true, request };
+}
+
+export async function acceptFriendRequest(userId: string, requestId: string): Promise<{ success: boolean; friendId?: string; error?: string }> {
+  const data = await load();
+  const user = data.users[userId];
+  if (!user) return { success: false, error: 'User not found.' };
+
+  const req = user.friendRequests.find((r) => r.id === requestId && r.toId === userId && r.status === 'pending');
+  if (!req) return { success: false, error: 'Request not found.' };
+
+  const fromUser = data.users[req.fromId];
+  if (!fromUser) return { success: false, error: 'Sender not found.' };
+
+  req.status = 'accepted';
+  // Update the request in sender's list too
+  const senderReq = fromUser.friendRequests.find((r) => r.id === requestId);
+  if (senderReq) senderReq.status = 'accepted';
+
+  // Add to friends lists if not already
+  if (!user.friends.includes(req.fromId)) user.friends.push(req.fromId);
+  if (!fromUser.friends.includes(userId)) fromUser.friends.push(userId);
+
+  await save(data);
+  return { success: true, friendId: req.fromId };
+}
+
+export async function rejectFriendRequest(userId: string, requestId: string): Promise<{ success: boolean; error?: string }> {
+  const data = await load();
+  const user = data.users[userId];
+  if (!user) return { success: false, error: 'User not found.' };
+
+  const req = user.friendRequests.find((r) => r.id === requestId && r.toId === userId && r.status === 'pending');
+  if (!req) return { success: false, error: 'Request not found.' };
+
+  const fromUser = data.users[req.fromId];
+  req.status = 'rejected';
+  if (fromUser) {
+    const senderReq = fromUser.friendRequests.find((r) => r.id === requestId);
+    if (senderReq) senderReq.status = 'rejected';
+  }
+
+  await save(data);
+  return { success: true };
+}
+
+export async function removeFriend(userId: string, targetUserId: string): Promise<void> {
+  const data = await load();
+  const user = data.users[userId];
+  const target = data.users[targetUserId];
+  if (!user || !target) return;
+
+  user.friends = user.friends.filter((id) => id !== targetUserId);
+  target.friends = target.friends.filter((id) => id !== userId);
+
+  // Also clean up accepted requests between them
+  user.friendRequests = user.friendRequests.filter((r) => !(r.fromId === targetUserId && r.toId === userId) && !(r.fromId === userId && r.toId === targetUserId));
+  target.friendRequests = target.friendRequests.filter((r) => !(r.fromId === targetUserId && r.toId === userId) && !(r.fromId === userId && r.toId === targetUserId));
+
+  await save(data);
+}
+
+export async function blockUser(userId: string, targetUserId: string): Promise<void> {
+  const data = await load();
+  const user = data.users[userId];
+  if (!user) return;
+  if (!user.blockedUsers.includes(targetUserId)) {
+    user.blockedUsers.push(targetUserId);
+  }
+  // Also remove from friends if they were friends
+  await removeFriend(userId, targetUserId);
+  await save(data);
+}
+
+export async function unblockUser(userId: string, targetUserId: string): Promise<void> {
+  const data = await load();
+  const user = data.users[userId];
+  if (!user) return;
+  user.blockedUsers = user.blockedUsers.filter((id) => id !== targetUserId);
+  await save(data);
+}
+
+export async function getFriendUsers(userId: string): Promise<import('../shared/types.js').FriendUser[]> {
+  const data = await load();
+  const user = data.users[userId];
+  if (!user) return [];
+  return user.friends.map((fid) => {
+    const f = data.users[fid];
+    return f ? { userId: f.id, username: f.username, avatarUrl: f.avatarUrl, status: f.status } : null;
+  }).filter(Boolean) as import('../shared/types.js').FriendUser[];
+}
+
+export async function getPendingFriendRequests(userId: string): Promise<import('../shared/types.js').FriendRequest[]> {
+  const data = await load();
+  const user = data.users[userId];
+  if (!user) return [];
+  return user.friendRequests.filter((r) => r.toId === userId && r.status === 'pending');
 }
 
 export async function getAllUsers(): Promise<DbUser[]> {

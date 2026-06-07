@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import session from 'express-session';
 import { RoomManager } from './roomManager.js';
-import { registerUser, loginUser, spendUserBalance, unlockUserTheme, getUserById, addEffectCardToInventory, seedDevUserIfEmpty, updateProfile, getProfileByUsername } from './userDb.js';
+import { registerUser, loginUser, spendUserBalance, unlockUserTheme, getUserById, addEffectCardToInventory, seedDevUserIfEmpty, updateProfile, getProfileByUsername, updateUserStatus, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, blockUser, unblockUser, getFriendUsers, getPendingFriendRequests } from './userDb.js';
 import { seedTestUsers, simulateGames } from './seed.js';
 import { EFFECT_CARDS } from '../shared/deck.js';
 import type { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from '../shared/types.js';
@@ -46,6 +46,7 @@ io.use((socket, next) => {
 });
 
 const roomManager = new RoomManager(io);
+const onlineUsers = new Set<string>(); // userIds currently connected
 
 // Health check for deployment platforms
 app.get('/health', (_req, res) => {
@@ -316,6 +317,8 @@ io.on('connection', (socket) => {
       if (result.success && result.user) {
         socket.data.userId = result.user.id;
         socket.data.username = result.user.username;
+        onlineUsers.add(result.user.id);
+        await updateUserStatus(result.user.id, 'online');
         socket.emit('auth-success', result.user);
       } else {
         socket.emit('auth-error', result.error || 'Registration failed');
@@ -334,6 +337,13 @@ io.on('connection', (socket) => {
       if (result.success && result.user) {
         socket.data.userId = result.user.id;
         socket.data.username = result.user.username;
+        onlineUsers.add(result.user.id);
+        await updateUserStatus(result.user.id, 'online');
+        // Notify friends that user is online
+        const friends = await getFriendUsers(result.user.id);
+        for (const f of friends) {
+          io.emit('friend-status-update', result.user.id, 'online');
+        }
         socket.emit('auth-success', result.user);
       } else {
         socket.emit('auth-error', result.error || 'Login failed');
@@ -404,13 +414,94 @@ io.on('connection', (socket) => {
     cb(user ? { ...user, passwordHash: '' } : null);
   });
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     const roomId = socket.data.roomId;
     const playerId = socket.data.playerId;
     if (roomId && playerId) {
       roomManager.handleDisconnect(roomId, playerId);
     }
+    const userId = socket.data.userId;
+    if (userId) {
+      onlineUsers.delete(userId);
+      await updateUserStatus(userId, 'offline');
+      // Notify friends that user is offline
+      const friends = await getFriendUsers(userId);
+      for (const f of friends) {
+        io.emit('friend-status-update', userId, 'offline');
+      }
+    }
     console.log('[Server] Client disconnected:', socket.id);
+  });
+
+  // Friend handlers
+  socket.on('send-friend-request', async (targetUsername, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(false, 'Not authenticated.');
+    const result = await sendFriendRequest(userId, targetUsername);
+    if (result.success && result.request) {
+      socket.emit('friend-request-received', result.request);
+      // If target is online, notify them immediately
+      io.emit('friend-request-received', result.request);
+    }
+    cb(result.success, result.error);
+  });
+
+  socket.on('accept-friend-request', async (requestId, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(false);
+    const result = await acceptFriendRequest(userId, requestId);
+    if (result.success && result.friendId) {
+      const friend = await getUserById(result.friendId);
+      if (friend) {
+        socket.emit('friend-request-accepted', { userId: friend.id, username: friend.username, avatarUrl: friend.avatarUrl, status: friend.status });
+        io.emit('friend-request-accepted', { userId, username: socket.data.username || '', avatarUrl: '', status: 'online' as const });
+      }
+    }
+    cb(result.success);
+  });
+
+  socket.on('reject-friend-request', async (requestId, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(false);
+    const result = await rejectFriendRequest(userId, requestId);
+    cb(result.success);
+  });
+
+  socket.on('remove-friend', async (targetUserId, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(false);
+    await removeFriend(userId, targetUserId);
+    socket.emit('friend-removed', targetUserId);
+    io.emit('friend-removed', userId);
+    cb(true);
+  });
+
+  socket.on('get-friends', async (cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb([]);
+    const friends = await getFriendUsers(userId);
+    cb(friends);
+  });
+
+  socket.on('get-friend-requests', async (cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb([]);
+    const requests = await getPendingFriendRequests(userId);
+    cb(requests);
+  });
+
+  socket.on('block-user', async (targetUserId, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(false);
+    await blockUser(userId, targetUserId);
+    cb(true);
+  });
+
+  socket.on('unblock-user', async (targetUserId, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(false);
+    await unblockUser(userId, targetUserId);
+    cb(true);
   });
 });
 
