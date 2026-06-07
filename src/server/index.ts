@@ -7,6 +7,7 @@ import session from 'express-session';
 import { RoomManager } from './roomManager.js';
 import { registerUser, loginUser, spendUserBalance, unlockUserTheme, getUserById, addEffectCardToInventory, seedDevUserIfEmpty, updateProfile, getProfileByUsername, updateUserStatus, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, blockUser, unblockUser, getFriendUsers, getPendingFriendRequests } from './userDb.js';
 import { sendDM, getDMHistory } from './dmDb.js';
+import { createGroup, joinGroup, leaveGroup, deleteGroup, sendGroupMessage, getGroupHistory, getMyGroups, promoteMember, demoteMod, kickFromGroup, getGroupById } from './groupChatDb.js';
 import { seedTestUsers, simulateGames } from './seed.js';
 import { EFFECT_CARDS } from '../shared/deck.js';
 import type { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from '../shared/types.js';
@@ -550,6 +551,126 @@ io.on('connection', (socket) => {
     if (!userId) return cb([]);
     const messages = await getDMHistory(userId, targetUserId, 50);
     cb(messages);
+  });
+
+  // Group chat handlers
+  socket.on('create-group', async (name, cb) => {
+    const userId = socket.data.userId;
+    const username = socket.data.username;
+    if (!userId || !username) return cb(null);
+    const group = await createGroup(name, userId, username);
+    socket.emit('group-created', group);
+    cb(group);
+  });
+
+  socket.on('join-group', async (groupId, cb) => {
+    const userId = socket.data.userId;
+    const username = socket.data.username;
+    if (!userId || !username) return cb(null);
+    const group = await joinGroup(groupId, userId, username);
+    if (group) {
+      io.emit('group-member-update', groupId, group.members);
+    }
+    cb(group ? { ...group, messages: [] } : null);
+  });
+
+  socket.on('leave-group', async (groupId, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(false);
+    const success = await leaveGroup(groupId, userId);
+    if (success) {
+      const group = await getGroupById(groupId);
+      if (group) {
+        io.emit('group-member-update', groupId, group.members);
+      } else {
+        io.emit('group-member-update', groupId, []);
+      }
+    }
+    cb(success);
+  });
+
+  socket.on('send-group-message', async (groupId, text, cb) => {
+    const userId = socket.data.userId;
+    const username = socket.data.username;
+    if (!userId || !username) return cb(false);
+    if (!text.trim()) return cb(false);
+    const message = await sendGroupMessage(groupId, userId, username, text);
+    if (message) {
+      io.emit('group-message-received', groupId, message);
+    }
+    cb(!!message);
+  });
+
+  socket.on('get-group-history', async (groupId, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb([]);
+    const messages = await getGroupHistory(groupId, 50);
+    cb(messages);
+  });
+
+  socket.on('get-my-groups', async (cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb([]);
+    const groups = await getMyGroups(userId);
+    cb(groups);
+  });
+
+  socket.on('promote-member', async (groupId, targetUserId, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(false);
+    const group = await getGroupById(groupId);
+    if (!group || group.ownerId !== userId) return cb(false);
+    const success = await promoteMember(groupId, targetUserId);
+    if (success) {
+      const updated = await getGroupById(groupId);
+      if (updated) io.emit('group-member-update', groupId, updated.members);
+    }
+    cb(success);
+  });
+
+  socket.on('demote-mod', async (groupId, targetUserId, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(false);
+    const group = await getGroupById(groupId);
+    if (!group || group.ownerId !== userId) return cb(false);
+    const success = await demoteMod(groupId, targetUserId);
+    if (success) {
+      const updated = await getGroupById(groupId);
+      if (updated) io.emit('group-member-update', groupId, updated.members);
+    }
+    cb(success);
+  });
+
+  socket.on('kick-from-group', async (groupId, targetUserId, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(false);
+    const group = await getGroupById(groupId);
+    if (!group) return cb(false);
+    const actor = group.members.find((m) => m.userId === userId);
+    if (!actor) return cb(false);
+    const target = group.members.find((m) => m.userId === targetUserId);
+    if (!target) return cb(false);
+    if (group.ownerId === targetUserId) return cb(false); // Cannot kick owner
+    if (actor.role === 'mod' && target.role !== 'member') return cb(false); // Mod can only kick members
+    if (actor.role === 'member') return cb(false); // Members can't kick
+    const success = await kickFromGroup(groupId, targetUserId);
+    if (success) {
+      const updated = await getGroupById(groupId);
+      if (updated) io.emit('group-member-update', groupId, updated.members);
+    }
+    cb(success);
+  });
+
+  socket.on('delete-group', async (groupId, cb) => {
+    const userId = socket.data.userId;
+    if (!userId) return cb(false);
+    const group = await getGroupById(groupId);
+    if (!group || group.ownerId !== userId) return cb(false);
+    const success = await deleteGroup(groupId);
+    if (success) {
+      io.emit('group-member-update', groupId, []);
+    }
+    cb(success);
   });
 });
 

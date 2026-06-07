@@ -52,6 +52,30 @@ export interface DMMessage {
   timestamp: number;
 }
 
+export interface GroupMember {
+  userId: string;
+  username: string;
+  avatarUrl?: string;
+  role: 'owner' | 'mod' | 'member';
+}
+
+export interface GroupMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  timestamp: number;
+}
+
+export interface GroupChat {
+  id: string;
+  name: string;
+  ownerId: string;
+  members: GroupMember[];
+  messages: GroupMessage[];
+  createdAt: number;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -218,6 +242,9 @@ export interface ServerToClientEvents {
   'friend-removed': (userId: string) => void;
   'friend-status-update': (userId: string, status: 'online' | 'away' | 'offline') => void;
   'dm-received': (message: DMMessage, fromUserId: string) => void;
+  'group-message-received': (groupId: string, message: GroupMessage) => void;
+  'group-member-update': (groupId: string, members: GroupMember[]) => void;
+  'group-created': (group: GroupChat) => void;
 }
 
 export interface CardPlay {
@@ -284,6 +311,16 @@ export interface ClientToServerEvents {
   'send-dm': (targetUserId: string, text: string, cb: (success: boolean) => void) => void;
   'get-dm-history': (targetUserId: string, cb: (messages: DMMessage[]) => void) => void;
   'set-effect-cards': (cardIds: string[], cb: (success: boolean) => void) => void;
+  'create-group': (name: string, cb: (group: GroupChat | null) => void) => void;
+  'join-group': (groupId: string, cb: (group: GroupChat | null) => void) => void;
+  'leave-group': (groupId: string, cb: (success: boolean) => void) => void;
+  'send-group-message': (groupId: string, text: string, cb: (success: boolean) => void) => void;
+  'get-group-history': (groupId: string, cb: (messages: GroupMessage[]) => void) => void;
+  'get-my-groups': (cb: (groups: GroupChat[]) => void) => void;
+  'promote-member': (groupId: string, targetUserId: string, cb: (success: boolean) => void) => void;
+  'demote-mod': (groupId: string, targetUserId: string, cb: (success: boolean) => void) => void;
+  'kick-from-group': (groupId: string, targetUserId: string, cb: (success: boolean) => void) => void;
+  'delete-group': (groupId: string, cb: (success: boolean) => void) => void;
 }
 
 export interface InterServerEvents {

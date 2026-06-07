@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Zap, Clock, Users, ArrowRight, Sparkles, Vote, Trophy, ShoppingBag, Lock, Check, LogIn, UserPlus, LogOut, Shield, User as UserIcon, Edit3 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket.js';
 import { playClick, playHover } from '../audio/sound.js';
-import type { LeaderboardEntry, User, Card, FriendUser, FriendRequest, DMMessage } from '../../shared/types.js';
+import type { LeaderboardEntry, User, Card, FriendUser, FriendRequest, DMMessage, GroupChat, GroupMessage, GroupMember } from '../../shared/types.js';
 import { EFFECT_CARDS } from '../../shared/deck.js';
 import { THEMES } from '../context/ThemeContext.js';
 import { getActiveGames, removeActiveGame } from '../utils/activeGames.js';
@@ -42,6 +42,14 @@ export default function TitleScreen() {
   const [activeDmUserId, setActiveDmUserId] = useState<string | null>(null);
   const [dmMessages, setDmMessages] = useState<DMMessage[]>([]);
   const [dmInput, setDmInput] = useState('');
+  const [sidebarTab, setSidebarTab] = useState<'friends' | 'groups'>('friends');
+  const [groups, setGroups] = useState<GroupChat[]>([]);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [groupMessages, setGroupMessages] = useState<GroupMessage[]>([]);
+  const [groupInput, setGroupInput] = useState('');
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [createGroupName, setCreateGroupName] = useState('');
+  const [joinGroupId, setJoinGroupId] = useState('');
 
   useEffect(() => {
     setActiveGames(getActiveGames());
@@ -63,6 +71,7 @@ export default function TitleScreen() {
       });
       emit('get-friends', (f: FriendUser[]) => setFriends(f));
       emit('get-friend-requests', (r: FriendRequest[]) => setFriendRequests(r));
+      emit('get-my-groups', (g: GroupChat[]) => setGroups(g));
     }
     const unsub = on('leaderboards-data', (data) => {
       setLeaderboards(data);
@@ -77,6 +86,7 @@ export default function TitleScreen() {
       localStorage.setItem('whosnext_user_id', u.id);
       emit('get-friends', (f: FriendUser[]) => setFriends(f));
       emit('get-friend-requests', (r: FriendRequest[]) => setFriendRequests(r));
+      emit('get-my-groups', (g: GroupChat[]) => setGroups(g));
     });
     const unsubAuthErr = on('auth-error', (msg: string) => {
       setAuthError(msg);
@@ -106,7 +116,27 @@ export default function TitleScreen() {
         return [...prev, msg];
       });
     });
-    return () => { unsub(); unsubAuth(); unsubAuthErr(); unsubFriendReq(); unsubFriendAccepted(); unsubFriendRemoved(); unsubFriendStatus(); unsubDM(); };
+    const unsubGroupMsg = on('group-message-received', (groupId: string, msg: GroupMessage) => {
+      if (groupId !== activeGroupId) return;
+      setGroupMessages((prev) => {
+        if (prev.find((m) => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    });
+    const unsubGroupMembers = on('group-member-update', (groupId: string, members: GroupMember[]) => {
+      setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, members } : g));
+    });
+    const unsubGroupCreated = on('group-created', (group: GroupChat) => {
+      setGroups((prev) => {
+        if (prev.find((g) => g.id === group.id)) return prev;
+        return [...prev, { ...group, messages: [] }];
+      });
+      setShowCreateGroup(false);
+      setCreateGroupName('');
+      setActiveGroupId(group.id);
+      setGroupMessages([]);
+    });
+    return () => { unsub(); unsubAuth(); unsubAuthErr(); unsubFriendReq(); unsubFriendAccepted(); unsubFriendRemoved(); unsubFriendStatus(); unsubDM(); unsubGroupMsg(); unsubGroupMembers(); unsubGroupCreated(); };
   }, [connected, emit, on]);
 
   function handleAuth() {
@@ -146,6 +176,86 @@ export default function TitleScreen() {
       if (success) {
         setDmInput('');
       }
+    });
+  }
+
+  function handleCreateGroup() {
+    if (!createGroupName.trim() || !user) return;
+    emit('create-group', createGroupName.trim(), (group: GroupChat | null) => {
+      if (group) {
+        setGroups((prev) => {
+          if (prev.find((g) => g.id === group.id)) return prev;
+          return [...prev, { ...group, messages: [] }];
+        });
+        setShowCreateGroup(false);
+        setCreateGroupName('');
+        setActiveGroupId(group.id);
+        setGroupMessages([]);
+      }
+    });
+  }
+
+  function handleJoinGroup() {
+    if (!joinGroupId.trim() || !user) return;
+    emit('join-group', joinGroupId.trim(), (group: GroupChat | null) => {
+      if (group) {
+        setGroups((prev) => {
+          if (prev.find((g) => g.id === group.id)) return prev;
+          return [...prev, group];
+        });
+        setJoinGroupId('');
+        setActiveGroupId(group.id);
+        setGroupMessages([]);
+      }
+    });
+  }
+
+  function handleSendGroupMessage() {
+    if (!groupInput.trim() || !activeGroupId || !user) return;
+    emit('send-group-message', activeGroupId, groupInput.trim(), (success: boolean) => {
+      if (success) setGroupInput('');
+    });
+  }
+
+  function handleLeaveGroup(groupId: string) {
+    emit('leave-group', groupId, (success: boolean) => {
+      if (success) {
+        setGroups((prev) => prev.filter((g) => g.id !== groupId));
+        if (activeGroupId === groupId) {
+          setActiveGroupId(null);
+          setGroupMessages([]);
+        }
+      }
+    });
+  }
+
+  function handleDeleteGroup(groupId: string) {
+    emit('delete-group', groupId, (success: boolean) => {
+      if (success) {
+        setGroups((prev) => prev.filter((g) => g.id !== groupId));
+        if (activeGroupId === groupId) {
+          setActiveGroupId(null);
+          setGroupMessages([]);
+        }
+      }
+    });
+  }
+
+  function handlePromote(groupId: string, targetUserId: string) {
+    emit('promote-member', groupId, targetUserId, (success: boolean) => {
+      if (!success) alert('Failed to promote member.');
+    });
+  }
+
+  function handleDemote(groupId: string, targetUserId: string) {
+    emit('demote-mod', groupId, targetUserId, (success: boolean) => {
+      if (!success) alert('Failed to demote moderator.');
+    });
+  }
+
+  function handleKickFromGroup(groupId: string, targetUserId: string) {
+    emit('kick-from-group', groupId, targetUserId, (success: boolean) => {
+      if (!success) alert('Failed to kick member.');
     });
   }
 
@@ -441,103 +551,291 @@ export default function TitleScreen() {
 
           {/* Sidebar Content */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            {activeDmUserId ? (
-              /* DM Panel */
-              <div className="flex flex-col h-full">
-                {/* DM Header */}
-                <div className="flex items-center gap-2 p-3 border-b border-border">
-                  <button
-                    onClick={() => setActiveDmUserId(null)}
-                    className="text-white/40 hover:text-white transition-colors text-xs shrink-0"
-                  >
-                    ← Back
-                  </button>
-                  <span className="text-sm font-semibold truncate">
-                    {friends.find(f => f.userId === activeDmUserId)?.username || 'Friend'}
-                  </span>
-                </div>
+            {/* Tabs */}
+            <div className="flex border-b border-border shrink-0">
+              {(['friends', 'groups'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => { playClick(); setSidebarTab(tab); }}
+                  className={`flex-1 py-2 text-xs font-semibold transition-colors ${
+                    sidebarTab === tab ? 'bg-accent/20 text-accent' : 'text-white/40 hover:text-white'
+                  }`}
+                >
+                  {tab === 'friends' ? `Friends (${friends.length})` : `Groups (${groups.length})`}
+                </button>
+              ))}
+            </div>
 
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
-                  {dmMessages.map((msg) => {
-                    const isMe = msg.senderId === user?.id;
-                    return (
-                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] px-3 py-2 rounded-lg text-xs ${
-                          isMe ? 'bg-accent/20 text-accent' : 'bg-surface-light text-white/80'
-                        }`}>
-                          {msg.text}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Input */}
-                <div className="p-3 border-t border-border flex gap-2">
-                  <input
-                    type="text"
-                    value={dmInput}
-                    onChange={(e) => setDmInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && dmInput.trim()) {
-                        handleSendDM();
-                      }
-                    }}
-                    placeholder="Type a message..."
-                    maxLength={500}
-                    className="flex-1 bg-surface-light border border-border rounded-lg px-3 py-2 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors text-xs"
-                  />
-                  <button
-                    onClick={handleSendDM}
-                    disabled={!dmInput.trim()}
-                    className="btn-primary text-xs px-3 py-2 disabled:opacity-40"
-                  >
-                    Send
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* Friends List */
-              <div className="flex flex-col overflow-y-auto p-3 gap-2">
-                <div className="text-xs text-white/40 font-bold uppercase tracking-wider mb-1">Friends ({friends.length})</div>
-                {friends.length === 0 && (
-                  <p className="text-white/40 text-xs text-center py-4">No friends yet. Send a request from your profile!</p>
-                )}
-                {friends.map((f) => (
-                  <button
-                    key={f.userId}
-                    onClick={() => {
-                      playClick();
-                      setActiveDmUserId(f.userId);
-                      emit('get-dm-history', f.userId, (msgs: DMMessage[]) => setDmMessages(msgs));
-                    }}
-                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-surface-light/50 transition-colors text-left w-full"
-                  >
-                    <div className="relative shrink-0">
-                      <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-xs font-bold text-accent">
-                        {f.avatarUrl ? (
-                          <img src={f.avatarUrl} alt="avatar" className="w-full h-full rounded-full object-cover" />
-                        ) : (
-                          f.username.slice(0, 2).toUpperCase()
-                        )}
-                      </div>
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-surface ${
-                        f.status === 'online' ? 'bg-green-500' : f.status === 'away' ? 'bg-yellow-500' : 'bg-gray-500'
-                      }`} />
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-semibold truncate">{f.username}</span>
-                      <span className={`text-[10px] ${
-                        f.status === 'online' ? 'text-green-400' : f.status === 'away' ? 'text-yellow-400' : 'text-gray-400'
-                      }`}>
-                        {f.status === 'online' ? 'Online' : f.status === 'away' ? 'Away' : 'Offline'}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {sidebarTab === 'friends' ? (
+                activeDmUserId ? (
+                  /* DM Panel */
+                  <div className="flex flex-col h-full">
+                    {/* DM Header */}
+                    <div className="flex items-center gap-2 p-3 border-b border-border">
+                      <button
+                        onClick={() => setActiveDmUserId(null)}
+                        className="text-white/40 hover:text-white transition-colors text-xs shrink-0"
+                      >
+                        ← Back
+                      </button>
+                      <span className="text-sm font-semibold truncate">
+                        {friends.find(f => f.userId === activeDmUserId)?.username || 'Friend'}
                       </span>
                     </div>
-                  </button>
-                ))}
-              </div>
-            )}
+
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+                      {dmMessages.map((msg) => {
+                        const isMe = msg.senderId === user?.id;
+                        return (
+                          <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[85%] px-3 py-2 rounded-lg text-xs ${
+                              isMe ? 'bg-accent/20 text-accent' : 'bg-surface-light text-white/80'
+                            }`}>
+                              {msg.text}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Input */}
+                    <div className="p-3 border-t border-border flex gap-2">
+                      <input
+                        type="text"
+                        value={dmInput}
+                        onChange={(e) => setDmInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && dmInput.trim()) {
+                            handleSendDM();
+                          }
+                        }}
+                        placeholder="Type a message..."
+                        maxLength={500}
+                        className="flex-1 bg-surface-light border border-border rounded-lg px-3 py-2 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors text-xs"
+                      />
+                      <button
+                        onClick={handleSendDM}
+                        disabled={!dmInput.trim()}
+                        className="btn-primary text-xs px-3 py-2 disabled:opacity-40"
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Friends List */
+                  <div className="flex flex-col overflow-y-auto p-3 gap-2">
+                    <div className="text-xs text-white/40 font-bold uppercase tracking-wider mb-1">Friends ({friends.length})</div>
+                    {friends.length === 0 && (
+                      <p className="text-white/40 text-xs text-center py-4">No friends yet. Send a request from your profile!</p>
+                    )}
+                    {friends.map((f) => (
+                      <button
+                        key={f.userId}
+                        onClick={() => {
+                          playClick();
+                          setActiveDmUserId(f.userId);
+                          emit('get-dm-history', f.userId, (msgs: DMMessage[]) => setDmMessages(msgs));
+                        }}
+                        className="flex items-center gap-2 p-2 rounded-lg hover:bg-surface-light/50 transition-colors text-left w-full"
+                      >
+                        <div className="relative shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-xs font-bold text-accent">
+                            {f.avatarUrl ? (
+                              <img src={f.avatarUrl} alt="avatar" className="w-full h-full rounded-full object-cover" />
+                            ) : (
+                              f.username.slice(0, 2).toUpperCase()
+                            )}
+                          </div>
+                          <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-surface ${
+                            f.status === 'online' ? 'bg-green-500' : f.status === 'away' ? 'bg-yellow-500' : 'bg-gray-500'
+                          }`} />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-semibold truncate">{f.username}</span>
+                          <span className={`text-[10px] ${
+                            f.status === 'online' ? 'text-green-400' : f.status === 'away' ? 'text-yellow-400' : 'text-gray-400'
+                          }`}>
+                            {f.status === 'online' ? 'Online' : f.status === 'away' ? 'Away' : 'Offline'}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )
+              ) : (
+                activeGroupId ? (
+                  /* Group Chat Panel */
+                  <div className="flex flex-col h-full">
+                    {/* Group Header */}
+                    <div className="flex items-center gap-2 p-3 border-b border-border">
+                      <button
+                        onClick={() => setActiveGroupId(null)}
+                        className="text-white/40 hover:text-white transition-colors text-xs shrink-0"
+                      >
+                        ← Back
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-semibold truncate block">
+                          {groups.find(g => g.id === activeGroupId)?.name || 'Group'}
+                        </span>
+                        <span className="text-[10px] text-white/50">
+                          {groups.find(g => g.id === activeGroupId)?.members.length || 0} members
+                        </span>
+                      </div>
+                      {(() => {
+                        const group = groups.find(g => g.id === activeGroupId);
+                        const me = group?.members.find(m => m.userId === user?.id);
+                        if (me?.role === 'owner') {
+                          return (
+                            <button
+                              onClick={() => group && handleDeleteGroup(group.id)}
+                              className="text-red-400 hover:text-red-300 text-xs shrink-0"
+                            >
+                              Delete
+                            </button>
+                          );
+                        }
+                        if (me?.role !== 'owner' && group) {
+                          return (
+                            <button
+                              onClick={() => handleLeaveGroup(group.id)}
+                              className="text-white/40 hover:text-white text-xs shrink-0"
+                            >
+                              Leave
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+                      {groupMessages.map((msg) => {
+                        const isMe = msg.senderId === user?.id;
+                        return (
+                          <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[85%] px-3 py-2 rounded-lg text-xs ${
+                              isMe ? 'bg-accent/20 text-accent' : 'bg-surface-light text-white/80'
+                            }`}>
+                              {!isMe && <div className="text-[10px] text-white/40 mb-0.5">{msg.senderName}</div>}
+                              {msg.text}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Members */}
+                    <div className="border-t border-border p-2 shrink-0">
+                      <details className="text-xs">
+                        <summary className="text-white/40 cursor-pointer select-none">Members</summary>
+                        <div className="flex flex-col gap-1 mt-1 max-h-24 overflow-y-auto">
+                          {(() => {
+                            const group = groups.find(g => g.id === activeGroupId);
+                            if (!group) return null;
+                            const me = group.members.find(m => m.userId === user?.id);
+                            const isOwner = me?.role === 'owner';
+                            const isMod = me?.role === 'mod';
+                            return group.members.map((m) => (
+                              <div key={m.userId} className="flex items-center justify-between p-1 rounded hover:bg-surface-light/30">
+                                <span className="truncate">
+                                  {m.username}
+                                  {m.role !== 'member' && (
+                                    <span className="text-[10px] text-accent ml-1">{m.role}</span>
+                                  )}
+                                </span>
+                                <div className="flex gap-1">
+                                  {isOwner && m.role === 'member' && (
+                                    <button onClick={() => handlePromote(group.id, m.userId)} className="text-[10px] text-green-400 hover:text-green-300">Promote</button>
+                                  )}
+                                  {isOwner && m.role === 'mod' && (
+                                    <button onClick={() => handleDemote(group.id, m.userId)} className="text-[10px] text-yellow-400 hover:text-yellow-300">Demote</button>
+                                  )}
+                                  {(isOwner || (isMod && m.role === 'member')) && m.userId !== user?.id && (
+                                    <button onClick={() => handleKickFromGroup(group.id, m.userId)} className="text-[10px] text-red-400 hover:text-red-300">Kick</button>
+                                  )}
+                                </div>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </details>
+                    </div>
+
+                    {/* Input */}
+                    <div className="p-3 border-t border-border flex gap-2 shrink-0">
+                      <input
+                        type="text"
+                        value={groupInput}
+                        onChange={(e) => setGroupInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && groupInput.trim()) {
+                            handleSendGroupMessage();
+                          }
+                        }}
+                        placeholder="Type a message..."
+                        maxLength={500}
+                        className="flex-1 bg-surface-light border border-border rounded-lg px-3 py-2 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors text-xs"
+                      />
+                      <button
+                        onClick={handleSendGroupMessage}
+                        disabled={!groupInput.trim()}
+                        className="btn-primary text-xs px-3 py-2 disabled:opacity-40"
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Groups List */
+                  <div className="flex flex-col overflow-y-auto p-3 gap-2">
+                    <button
+                      onClick={() => setShowCreateGroup(true)}
+                      className="btn-primary text-xs py-2 w-full"
+                    >
+                      Create Group
+                    </button>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={joinGroupId}
+                        onChange={(e) => setJoinGroupId(e.target.value)}
+                        placeholder="Group ID to join..."
+                        className="flex-1 bg-surface-light border border-border rounded-lg px-2 py-1 text-white placeholder-white/30 text-xs focus:outline-none focus:border-accent"
+                      />
+                      <button onClick={handleJoinGroup} className="btn-primary text-xs px-3">Join</button>
+                    </div>
+                    <div className="text-xs text-white/40 font-bold uppercase tracking-wider mb-1 mt-2">My Groups ({groups.length})</div>
+                    {groups.length === 0 && (
+                      <p className="text-white/40 text-xs text-center py-4">No groups yet. Create or join one!</p>
+                    )}
+                    {groups.map((g) => (
+                      <button
+                        key={g.id}
+                        onClick={() => {
+                          playClick();
+                          setActiveGroupId(g.id);
+                          emit('get-group-history', g.id, (msgs: GroupMessage[]) => setGroupMessages(msgs));
+                        }}
+                        className="flex items-center gap-2 p-2 rounded-lg hover:bg-surface-light/50 transition-colors text-left w-full"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-xs font-bold text-accent">
+                          {g.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-semibold truncate">{g.name}</span>
+                          <span className="text-[10px] text-white/50">{g.members.length} members</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -633,6 +931,36 @@ export default function TitleScreen() {
             >
               {guestMode && <Check size={14} className="text-accent" />}
               Continue as Guest
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Create Group Modal */}
+      {showCreateGroup && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass-card p-6 max-w-sm w-full flex flex-col gap-4 animate-bounce-in">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold">Create Group</h2>
+              <button onClick={() => { setShowCreateGroup(false); setCreateGroupName(''); }} className="text-white/40 hover:text-white">✕</button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm text-white/60">Group Name</label>
+              <input
+                type="text"
+                value={createGroupName}
+                onChange={(e) => setCreateGroupName(e.target.value)}
+                placeholder="Enter group name"
+                maxLength={50}
+                className="bg-surface-light border border-border rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors"
+              />
+            </div>
+            <button
+              onClick={handleCreateGroup}
+              disabled={!createGroupName.trim()}
+              className="btn-primary disabled:opacity-40"
+            >
+              Create
             </button>
           </div>
         </div>
