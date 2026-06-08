@@ -333,7 +333,7 @@ export default function TitleScreen() {
           <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
         </div>
 
-        <div className="relative z-10 flex flex-col items-center gap-6 px-4 max-w-2xl w-full">
+        <div className="relative z-10 flex flex-col items-center justify-center gap-6 px-4 max-w-5xl w-full h-full">
         {/* Logo */}
         <div className="flex flex-col items-center gap-2">
           <div className="flex items-center gap-3">
@@ -443,7 +443,7 @@ export default function TitleScreen() {
         )}
 
         {/* Game Mode Cards */}
-        <div className="flex flex-col sm:flex-row gap-4 w-full items-stretch">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-4 w-full items-stretch justify-center">
           <button
             onClick={() => { playClick(); navigate('/lobby/quick-play'); }}
             onMouseEnter={() => { setHovered('quick-play'); playHover(); }}
