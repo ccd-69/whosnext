@@ -443,12 +443,12 @@ export default function TitleScreen() {
         )}
 
         {/* Game Mode Cards */}
-        <div className="flex flex-col sm:flex-row gap-4 w-full">
+        <div className="flex flex-col sm:flex-row gap-4 w-full items-stretch">
           <button
             onClick={() => { playClick(); navigate('/lobby/quick-play'); }}
             onMouseEnter={() => { setHovered('quick-play'); playHover(); }}
             onMouseLeave={() => setHovered(null)}
-            className={`flex-1 glass-card p-6 text-left transition-all duration-300 hover:border-accent/50 hover:bg-surface-light/80 ${
+            className={`flex-1 flex flex-col glass-card p-6 text-left transition-all duration-300 hover:border-accent/50 hover:bg-surface-light/80 ${
               hovered === 'quick-play' ? 'scale-[1.02] shadow-xl shadow-accent/20' : ''
             }`}
           >
@@ -468,7 +468,7 @@ export default function TitleScreen() {
               <Clock size={16} />
               <span>15-30 min</span>
             </div>
-            <div className="mt-4 flex items-center gap-2 text-accent font-bold">
+            <div className="mt-auto pt-4 flex items-center gap-2 text-accent font-bold">
               <span>Start Game</span>
               <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
             </div>
@@ -478,7 +478,7 @@ export default function TitleScreen() {
             onClick={() => { playClick(); navigate('/lobby/two-votes'); }}
             onMouseEnter={() => { setHovered('two-votes'); playHover(); }}
             onMouseLeave={() => setHovered(null)}
-            className={`flex-1 glass-card p-6 text-left transition-all duration-300 hover:border-green-500/50 hover:bg-surface-light/80 ${
+            className={`flex-1 flex flex-col glass-card p-6 text-left transition-all duration-300 hover:border-green-500/50 hover:bg-surface-light/80 ${
               hovered === 'two-votes' ? 'scale-[1.02] shadow-xl shadow-green-500/20' : ''
             }`}
           >
@@ -498,7 +498,7 @@ export default function TitleScreen() {
               <Vote size={16} />
               <span>2 winners/round</span>
             </div>
-            <div className="mt-4 flex items-center gap-2 text-green-400 font-bold">
+            <div className="mt-auto pt-4 flex items-center gap-2 text-green-400 font-bold">
               <span>Start Game</span>
               <ArrowRight size={18} />
             </div>
@@ -508,7 +508,7 @@ export default function TitleScreen() {
             onClick={() => { playClick(); navigate('/lobby/whos-next'); }}
             onMouseEnter={() => { setHovered('whos-next'); playHover(); }}
             onMouseLeave={() => setHovered(null)}
-            className={`flex-1 glass-card p-6 text-left transition-all duration-300 hover:border-purple-500/50 hover:bg-surface-light/80 ${
+            className={`flex-1 flex flex-col glass-card p-6 text-left transition-all duration-300 hover:border-purple-500/50 hover:bg-surface-light/80 ${
               hovered === 'whos-next' ? 'scale-[1.02] shadow-xl shadow-purple-500/20' : ''
             }`}
           >
@@ -528,7 +528,7 @@ export default function TitleScreen() {
               <Clock size={16} />
               <span>Anytime</span>
             </div>
-            <div className="mt-4 flex items-center gap-2 text-purple-400 font-bold">
+            <div className="mt-auto pt-4 flex items-center gap-2 text-purple-400 font-bold">
               <span>Start Game</span>
               <ArrowRight size={18} />
             </div>
@@ -538,7 +538,7 @@ export default function TitleScreen() {
             onClick={() => { playClick(); navigate('/lobby/battle-royale'); }}
             onMouseEnter={() => { setHovered('battle-royale'); playHover(); }}
             onMouseLeave={() => setHovered(null)}
-            className={`flex-1 glass-card p-6 text-left transition-all duration-300 hover:border-red-500/50 hover:bg-surface-light/80 ${
+            className={`flex-1 flex flex-col glass-card p-6 text-left transition-all duration-300 hover:border-red-500/50 hover:bg-surface-light/80 ${
               hovered === 'battle-royale' ? 'scale-[1.02] shadow-xl shadow-red-500/20' : ''
             }`}
           >
@@ -558,7 +558,7 @@ export default function TitleScreen() {
               <Shield size={16} />
               <span>30 HP</span>
             </div>
-            <div className="mt-4 flex items-center gap-2 text-red-400 font-bold">
+            <div className="mt-auto pt-4 flex items-center gap-2 text-red-400 font-bold">
               <span>Start Game</span>
               <ArrowRight size={18} />
             </div>
