@@ -45,6 +45,10 @@ export default function GameBoard() {
   const [shopOpen, setShopOpen] = useState(false);
   const [hasContinued, setHasContinued] = useState(false);
 
+  // Battle Royale
+  const [damageLog, setDamageLog] = useState<string[]>([]);
+  const [eliminatedIds, setEliminatedIds] = useState<Set<string>>(new Set());
+
   // Mini Profile
   const [miniProfilePlayer, setMiniProfilePlayer] = useState<Player | null>(null);
 
@@ -113,6 +117,8 @@ export default function GameBoard() {
       setRoundSummary(null);
       setHasContinued(false);
       setShopOpen(false);
+      setDamageLog([]);
+      setEliminatedIds(new Set());
       setNotification('New round started!');
       setTimeout(() => setNotification(''), 3000);
       playChime();
@@ -238,15 +244,15 @@ export default function GameBoard() {
       setNotification(msg);
       setTimeout(() => setNotification(''), 5000);
     });
-    const unsubCombat = on('combat-update', (healths, shields, damageLog) => {
-      // Health values are already in the next game-state broadcast,
-      // but we can flash a notification with the damage log
-      if (damageLog.length > 0) {
-        setNotification(damageLog[damageLog.length - 1]);
+    const unsubCombat = on('combat-update', (healths, shields, log) => {
+      setDamageLog(log);
+      if (log.length > 0) {
+        setNotification(log[log.length - 1]);
         setTimeout(() => setNotification(''), 4000);
       }
     });
     const unsubEliminated = on('player-eliminated', (playerId: string, playerName: string) => {
+      setEliminatedIds((prev) => new Set([...prev, playerId]));
       setNotification(`${playerName} has been eliminated!`);
       setTimeout(() => setNotification(''), 4000);
     });
@@ -400,7 +406,10 @@ export default function GameBoard() {
   const isJudge = myPlayer?.id === room?.judgeId;
   const blackCard = room?.blackCard;
   const submittedCards = room?.submittedCards || [];
-  const allPlayed = submittedCards.length >= (room?.players.length || 0) - 1;
+  const expectedSubmitters = room
+    ? room.players.filter((p: Player) => p.id !== room.judgeId && !(room.mode === 'battle-royale' && p.health <= 0)).length
+    : 0;
+  const allPlayed = submittedCards.length >= expectedSubmitters;
   const blackPickCount = blackCard?.pickCount || 1;
   const effectivePickCount = ((myPlayer?.doublePointsHandRounds ?? 0) > 0 && blackPickCount === 1) ? 1 : blackPickCount;
   const blankCardsRemaining = myPlayer?.blankCardsRemaining ?? 0;
@@ -464,26 +473,29 @@ export default function GameBoard() {
       <div className="glass-card p-3 flex flex-col gap-2 flex-1">
         <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Scoreboard</div>
         <div className="flex flex-col gap-1.5">
-          {sortedPlayers.map((p: Player) => (
+          {sortedPlayers.map((p: Player) => {
+              const isEliminated = room.mode === 'battle-royale' && p.health <= 0;
+              return (
             <div
               key={p.id}
               className={`group flex items-center justify-between px-2 py-1.5 rounded-lg text-sm ${
-                p.id === gameState?.myPlayerId ? 'bg-accent/10 ring-1 ring-accent/30' : 'bg-surface-light'
+                isEliminated ? 'bg-surface-light/40 opacity-50' : p.id === gameState?.myPlayerId ? 'bg-accent/10 ring-1 ring-accent/30' : 'bg-surface-light'
               }`}
             >
               <div className="flex items-center gap-2 min-w-0">
                 <div className={`w-2 h-2 rounded-full shrink-0 ${
-                  p.abductionRounds > 0 ? 'bg-purple-500' : p.isConnected ? 'bg-green-500' : 'bg-red-500'
+                  isEliminated ? 'bg-gray-500' : p.abductionRounds > 0 ? 'bg-purple-500' : p.isConnected ? 'bg-green-500' : 'bg-red-500'
                 }`} />
                 <button
                   onClick={() => { setMiniProfilePlayer(p); playClick(); }}
-                  className={`font-semibold truncate text-left hover:text-accent transition-colors ${p.abductionRounds > 0 ? 'text-purple-400 line-through' : ''}`}
+                  className={`font-semibold truncate text-left hover:text-accent transition-colors ${p.abductionRounds > 0 ? 'text-purple-400 line-through' : ''} ${isEliminated ? 'text-white/30 line-through' : ''}`}
                 >
                   {p.name}
-                  {p.id === room.judgeId && <Crown size={12} className="inline text-accent ml-1" />}
+                  {p.id === room.judgeId && !isEliminated && <Crown size={12} className="inline text-accent ml-1" />}
                   {p.abductionRounds > 0 && <span className="text-[10px] text-purple-400 ml-1">(abducted)</span>}
+                  {isEliminated && <span className="text-[10px] text-red-400 ml-1">(eliminated)</span>}
                 </button>
-                {p.id !== gameState?.myPlayerId && p.isConnected && (
+                {!isEliminated && p.id !== gameState?.myPlayerId && p.isConnected && (
                   <button
                     onClick={() => {
                       emit('start-vote-kick', p.id);
@@ -496,17 +508,17 @@ export default function GameBoard() {
                   </button>
                 )}
                 <div className="flex gap-0.5">
-                  {p.analProbeRounds > 0 && (
+                  {!isEliminated && p.analProbeRounds > 0 && (
                     <span title="Anal Probe: extra cards" className="bg-pink-500/10 rounded px-1">
                       <Plus size={10} className="text-pink-400" />
                     </span>
                   )}
-                  {p.doublePointsHandRounds > 0 && (
+                  {!isEliminated && p.doublePointsHandRounds > 0 && (
                     <span title="Double points hand" className="bg-yellow-500/10 rounded px-1">
                       <Zap size={10} className="text-yellow-400" />
                     </span>
                   )}
-                  {p.cardQualityDownRounds > 0 && (
+                  {!isEliminated && p.cardQualityDownRounds > 0 && (
                     <span title="Card quality down" className="bg-red-500/10 rounded px-1">
                       <Minus size={10} className="text-red-400" />
                     </span>
@@ -519,7 +531,7 @@ export default function GameBoard() {
                     <div className="w-16 h-1.5 bg-surface-light rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full ${
-                          p.health > p.maxHealth * 0.5 ? 'bg-green-500' : p.health > p.maxHealth * 0.25 ? 'bg-yellow-500' : 'bg-red-500'
+                          isEliminated ? 'bg-gray-500' : p.health > p.maxHealth * 0.5 ? 'bg-green-500' : p.health > p.maxHealth * 0.25 ? 'bg-yellow-500' : 'bg-red-500'
                         }`}
                         style={{ width: `${Math.max(0, (p.health / p.maxHealth) * 100)}%` }}
                       />
@@ -528,10 +540,10 @@ export default function GameBoard() {
                   </div>
                 )}
                 <span className="text-xs text-white/40">${p.currency.toFixed(2)}</span>
-                <span className="font-bold">{p.score}</span>
+                <span className={`font-bold ${isEliminated ? 'text-white/20' : ''}`}>{p.score}</span>
               </div>
             </div>
-          ))}
+          );})}
         </div>
       </div>
     </div>
@@ -630,7 +642,9 @@ export default function GameBoard() {
   // Game Over Screen
   if (phase === 'game-over') {
     const winner = room.players.find((p: Player) => p.id === winnerId);
-    const sortedPlayers = [...room.players].sort((a, b) => b.score - a.score);
+    const sortedPlayers = room.mode === 'battle-royale'
+      ? [...room.players].sort((a, b) => b.health - a.health || b.score - a.score)
+      : [...room.players].sort((a, b) => b.score - a.score);
 
     return (
       <div className="flex h-full flex-col items-center justify-start px-4 overflow-auto py-6">
@@ -639,7 +653,9 @@ export default function GameBoard() {
             <Trophy size={64} className="text-accent mx-auto mb-4" />
             <h2 className="text-4xl font-black mb-2">Game Over!</h2>
             <p className="text-xl text-white/80">
-              {winner?.name || 'Someone'} wins!
+              {room.mode === 'battle-royale'
+                ? `${winner?.name || 'Someone'} is the last one standing!`
+                : `${winner?.name || 'Someone'} wins!`}
             </p>
           </div>
 
@@ -656,8 +672,14 @@ export default function GameBoard() {
                   <User size={18} className="text-white/40" />
                   <span className="font-semibold">{p.name}</span>
                   {p.id === winnerId && <Trophy size={16} className="text-accent" />}
+                  {room.mode === 'battle-royale' && p.health <= 0 && <span className="text-[10px] text-red-400">(eliminated)</span>}
                 </div>
                 <div className="flex items-center gap-3">
+                  {room.mode === 'battle-royale' && (
+                    <span className={`text-sm font-bold ${p.health <= 0 ? 'text-white/20' : p.health > p.maxHealth * 0.5 ? 'text-green-400' : p.health > p.maxHealth * 0.25 ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {p.health}/{p.maxHealth} HP
+                    </span>
+                  )}
                   <span className="text-xl font-bold">{p.score}</span>
                   {p.id !== gameState?.myPlayerId && (
                     <button
@@ -709,22 +731,26 @@ export default function GameBoard() {
             <span className="text-sm">Round {room.round} / {room.maxRounds}</span>
           </div>
           <div className="flex items-center gap-2">
-            {room.players.map((p: Player) => (
+            {room.players.map((p: Player) => {
+              const isEliminated = room.mode === 'battle-royale' && p.health <= 0;
+              return (
               <button
                 key={p.id}
                 onClick={() => { setMiniProfilePlayer(p); playClick(); }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold hover:ring-1 hover:ring-accent/50 transition-all ${
-                  p.id === room.judgeId
+                  isEliminated
+                    ? 'bg-surface-light/40 text-white/20'
+                    : p.id === room.judgeId
                     ? 'bg-accent/20 text-accent'
                     : 'bg-surface-light text-white/60'
                 }`}
-                title={`${p.name}: ${p.score} points`}
+                title={`${p.name}: ${p.score} points${isEliminated ? ' (eliminated)' : ''}`}
               >
                 <User size={12} />
                 <span>{p.name}</span>
                 <span className="opacity-60">({p.score})</span>
               </button>
-            ))}
+            );})}
           </div>
           <button
             onClick={() => { emit('start-vote-end'); playClick(); }}
@@ -1326,6 +1352,8 @@ export default function GameBoard() {
                       ? 'Pick the second winner:'
                       : room.mode === 'two-votes'
                       ? 'Pick the first winner:'
+                      : room.mode === 'battle-royale'
+                      ? 'Pick the deadliest answer:'
                       : 'Pick the best answer:'}
                   </p>
                   {room.mode === 'two-votes' && room.firstWinnerSubmissionId && (
@@ -1389,6 +1417,8 @@ export default function GameBoard() {
                   <p className="text-white/60">
                     {room.mode === 'two-votes' && room.firstWinnerSubmissionId
                       ? 'Waiting for the judge to pick the second winner...'
+                      : room.mode === 'battle-royale'
+                      ? 'Waiting for the judge to pick the deadliest answer...'
                       : 'Waiting for the judge to pick a winner...'}
                   </p>
                 </div>
@@ -1398,7 +1428,7 @@ export default function GameBoard() {
                 <div className="flex flex-col items-center gap-4">
                   <div className="w-16 h-16 border-4 border-accent/20 border-t-accent rounded-full animate-spin" />
                   <p className="text-white/60">Waiting for players to submit their cards...</p>
-                  <p className="text-white/40 text-sm">{submittedCards.length} / {room.players.length - 1} submitted</p>
+                  <p className="text-white/40 text-sm">{submittedCards.length} / {expectedSubmitters} submitted</p>
                 </div>
               )}
             </div>
@@ -1454,6 +1484,18 @@ export default function GameBoard() {
                       </div>
                     );
                   })}
+              </div>
+            )}
+
+            {/* Damage Log — Battle Royale only */}
+            {room.mode === 'battle-royale' && damageLog.length > 0 && (
+              <div className="flex flex-col gap-2 w-full max-w-md">
+                <div className="text-xs text-red-400 font-bold uppercase tracking-wider">Combat Log</div>
+                <div className="flex flex-col gap-1 bg-surface-light/50 rounded-lg p-3 max-h-40 overflow-y-auto">
+                  {damageLog.map((entry, i) => (
+                    <span key={i} className="text-xs text-white/70">• {entry}</span>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -1542,17 +1584,19 @@ export default function GameBoard() {
                 <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
                 <p className="text-white/60">Waiting for other players to continue...</p>
                 <p className="text-xs text-white/40">
-                  {room.readyPlayerIds.length} / {room.players.filter((p: Player) => p.isConnected).length} ready
+                  {room.readyPlayerIds.length} / {room.mode === 'battle-royale' ? room.players.filter((p: Player) => p.isConnected && p.health > 0).length : room.players.filter((p: Player) => p.isConnected).length} ready
                 </p>
                 <div className="flex flex-col gap-1">
-                  {room.players.map((p: Player) => (
-                    <div key={p.id} className="flex items-center gap-2 text-xs">
-                      <div className={`w-2 h-2 rounded-full ${room.readyPlayerIds.includes(p.id) ? 'bg-green-500' : p.isConnected ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                  {room.players.map((p: Player) => {
+                    const isEliminated = room.mode === 'battle-royale' && p.health <= 0;
+                    return (
+                    <div key={p.id} className={`flex items-center gap-2 text-xs ${isEliminated ? 'opacity-40' : ''}`}>
+                      <div className={`w-2 h-2 rounded-full ${isEliminated ? 'bg-gray-500' : room.readyPlayerIds.includes(p.id) ? 'bg-green-500' : p.isConnected ? 'bg-yellow-500' : 'bg-red-500'}`} />
                       <span className={p.id === gameState?.myPlayerId ? 'text-accent font-bold' : 'text-white/60'}>
-                        {p.name} {room.readyPlayerIds.includes(p.id) ? '(ready)' : p.isConnected ? '(waiting)' : '(disconnected)'}
+                        {p.name} {isEliminated ? '(eliminated)' : room.readyPlayerIds.includes(p.id) ? '(ready)' : p.isConnected ? '(waiting)' : '(disconnected)'}
                       </span>
                     </div>
-                  ))}
+                  );})}
                 </div>
               </div>
             )}

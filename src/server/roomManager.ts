@@ -1288,7 +1288,10 @@ export class RoomManager {
     }
 
     // Active game: not enough players left
-    if (room.players.length < 3) {
+    const aliveCount = room.mode === 'battle-royale'
+      ? room.players.filter((p) => p.health > 0).length
+      : room.players.length;
+    if (aliveCount < 3) {
       this.resetToLobby(room);
       this.io.to(room.id).emit('player-left', playerId);
       this.io.to(room.id).emit('notification', `${player.name} left. Not enough players — returning to lobby.`);
@@ -1350,6 +1353,8 @@ export class RoomManager {
 
     // In who's-next mode, players are never auto-removed on disconnect
     if (room.mode === 'whos-next') return;
+    // In battle-royale, eliminated players are spectators — never auto-remove
+    if (room.mode === 'battle-royale' && player.health <= 0) return;
 
     const timer = setTimeout(() => {
       this.disconnectTimers.delete(timerKey);
