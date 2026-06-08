@@ -80,6 +80,9 @@ export class RoomManager {
       userId: opts.userId,
       username: opts.username,
       selectedEffectCardIds: [],
+      health: opts.mode === 'battle-royale' ? 30 : 0,
+      maxHealth: opts.mode === 'battle-royale' ? 30 : 0,
+      shieldHp: 0,
     };
     const room: Room = {
       id: roomId,
@@ -152,6 +155,9 @@ export class RoomManager {
       userId,
       username,
       selectedEffectCardIds: [],
+      health: room.mode === 'battle-royale' ? room.players[0]?.maxHealth || 30 : 0,
+      maxHealth: room.mode === 'battle-royale' ? room.players[0]?.maxHealth || 30 : 0,
+      shieldHp: 0,
     };
     room.players.push(player);
     room.updatedAt = Date.now();
@@ -184,6 +190,10 @@ export class RoomManager {
       p.analProbeReturnRound = 0;
       p.currency = 0;
       p.totalEarnedThisGame = 0;
+      if (room.mode === 'battle-royale') {
+        p.health = p.maxHealth || 30;
+        p.shieldHp = 0;
+      }
     }
     // Grant selected effect cards from user inventory (max 2)
     for (const p of room.players) {
@@ -236,8 +246,9 @@ export class RoomManager {
 
   private dealCards(room: Room, previousSubmissions?: { playerId: string; cards: Card[] }[]): void {
     for (const player of room.players) {
-      // Abducted players get no cards
+      // Abducted or eliminated players get no cards
       if (player.abductionRounds > 0) continue;
+      if (room.mode === 'battle-royale' && player.health <= 0) continue;
 
       const target = room.startingCards + (player.analProbeRounds > 0 ? 3 : 0);
       const qualityAdjustedTarget = player.cardQualityDownRounds > 0 ? Math.max(1, Math.floor(target / 2)) : target;
@@ -324,11 +335,11 @@ export class RoomManager {
     // Replenish white cards for all players
     this.dealCards(room, previousSubmissions);
 
-    // Judge rotation — skip abducted and disconnected players
+    // Judge rotation — skip abducted, disconnected, and eliminated players
     let attempts = 0;
     let judgeIndex = (room.round - 1) % room.players.length;
     while (
-      (room.players[judgeIndex]?.abductionRounds > 0 || !room.players[judgeIndex]?.isConnected) &&
+      (room.players[judgeIndex]?.abductionRounds > 0 || !room.players[judgeIndex]?.isConnected || (room.mode === 'battle-royale' && room.players[judgeIndex]?.health <= 0)) &&
       attempts < room.players.length
     ) {
       judgeIndex = (judgeIndex + 1) % room.players.length;
@@ -350,9 +361,13 @@ export class RoomManager {
     const player = room.players.find((p) => p.id === playerId);
     if (!player) { console.log('[RoomManager] playCard: player not found', playerId, 'in', room.players.map((p) => p.id)); return false; }
 
-    // Abducted players cannot play
+    // Abducted or eliminated players cannot play
     if (player.abductionRounds > 0) {
       this.io.to(player.socketId).emit('error', 'You are abducted and cannot play this round!');
+      return false;
+    }
+    if (room.mode === 'battle-royale' && player.health <= 0) {
+      this.io.to(player.socketId).emit('error', 'You have been eliminated!');
       return false;
     }
 
@@ -365,7 +380,7 @@ export class RoomManager {
         room.submittedCards.push({ playerId, cards: [forcedCard] });
         this.io.to(room.id).emit('card-played', playerId);
         this.io.to(room.id).emit('notification', `${player.name} was forced to play a random card!`);
-        const expectedSubmissions = room.players.filter((p) => p.id !== room.judgeId && p.abductionRounds === 0).length;
+        const expectedSubmissions = room.players.filter((p) => p.id !== room.judgeId && p.abductionRounds === 0 && !(room.mode === 'battle-royale' && p.health <= 0)).length;
         const uniqueSubmitters = new Set(room.submittedCards.map((s) => s.playerId)).size;
         if (uniqueSubmitters >= expectedSubmissions) {
           room.phase = 'judging';
@@ -526,8 +541,8 @@ export class RoomManager {
     room.submittedCards.push({ playerId, cards: playedCards, effectCard: playedEffectCard, submissionId: crypto.randomUUID(), isReSubmit: false });
     this.io.to(room.id).emit('card-played', playerId);
 
-    // Check if everyone except judge has played (count unique submitters, skip abducted)
-    const expectedSubmissions = room.players.filter((p) => p.id !== room.judgeId && p.abductionRounds === 0).length;
+    // Check if everyone except judge has played (count unique submitters, skip abducted and eliminated)
+    const expectedSubmissions = room.players.filter((p) => p.id !== room.judgeId && p.abductionRounds === 0 && !(room.mode === 'battle-royale' && p.health <= 0)).length;
     const uniqueSubmitters = new Set(room.submittedCards.map((s) => s.playerId)).size;
     if (uniqueSubmitters >= expectedSubmissions) {
       room.phase = 'judging';
@@ -649,6 +664,11 @@ export class RoomManager {
       return this.resolveTwoVotes(room, room.firstWinnerSubmissionId, submissionId);
     }
 
+    // Battle Royale mode: winner deals damage to all other living players
+    if (room.mode === 'battle-royale') {
+      return this.resolveCombatRound(room, winnerId, winningSub);
+    }
+
     // Standard single-winner mode
     return this.resolveSingleWinner(room, winnerId, winningSub);
   }
@@ -739,6 +759,66 @@ export class RoomManager {
     const topScorer = room.players.reduce((a, b) => (a.score > b.score ? a : b));
     if (topScorer.score >= room.winningScore) {
       this.endGame(room, topScorer.id);
+    } else {
+      this.startRoundEnd(room);
+    }
+
+    this.broadcastState(room);
+    return true;
+  }
+
+  private resolveCombatRound(room: Room, winnerId: string, winningSub: typeof room.submittedCards[0]): boolean {
+    const winner = room.players.find((p) => p.id === winnerId);
+    if (!winner) return false;
+
+    const damageLog: string[] = [];
+    const baseDamage = 3;
+
+    for (const p of room.players) {
+      if (p.id === winnerId) continue;
+      if (p.health <= 0) continue; // already eliminated
+
+      let dmg = baseDamage;
+      // Apply shield first
+      if (p.shieldHp > 0) {
+        const absorbed = Math.min(p.shieldHp, dmg);
+        p.shieldHp -= absorbed;
+        dmg -= absorbed;
+        if (absorbed > 0) damageLog.push(`${p.name}'s shield absorbed ${absorbed} damage.`);
+      }
+      if (dmg > 0) {
+        p.health -= dmg;
+        damageLog.push(`${winner.name} dealt ${dmg} damage to ${p.name}!`);
+      }
+      if (p.health <= 0) {
+        p.health = 0;
+        this.io.to(room.id).emit('player-eliminated', p.id, p.name);
+        damageLog.push(`${p.name} has been eliminated!`);
+      }
+    }
+
+    winner.score += 1; // still track score for leaderboard compatibility
+    room.phase = 'reveal';
+
+    const winningCards = winningSub.cards || room.submittedCards[0].cards;
+    this.io.to(room.id).emit('judge-picked', winnerId, winningCards);
+    this.io.to(room.id).emit('notification', `${winner.name} wins the round and attacks everyone!`);
+
+    const healths: Record<string, number> = {};
+    const shields: Record<string, number> = {};
+    for (const p of room.players) {
+      healths[p.id] = p.health;
+      shields[p.id] = p.shieldHp;
+    }
+    this.io.to(room.id).emit('combat-update', healths, shields, damageLog);
+
+    const aliveCount = room.players.filter((p) => p.health > 0).length;
+    if (aliveCount <= 1) {
+      const survivor = room.players.find((p) => p.health > 0) || winner;
+      this.endGame(room, survivor.id);
+    } else if (room.round >= room.maxRounds) {
+      const survivor = room.players.reduce((a, b) => (a.health > b.health ? a : b));
+      this.endGame(room, survivor.id);
     } else {
       this.startRoundEnd(room);
     }
@@ -855,12 +935,16 @@ export class RoomManager {
     if (!room.readyPlayerIds.includes(playerId)) {
       room.readyPlayerIds.push(playerId);
     }
-    const connectedPlayers = room.players.filter((p) => p.isConnected);
-    if (room.readyPlayerIds.length >= connectedPlayers.length) {
+    const activePlayers = room.mode === 'battle-royale'
+      ? room.players.filter((p) => p.isConnected && p.health > 0)
+      : room.players.filter((p) => p.isConnected);
+    if (room.readyPlayerIds.length >= activePlayers.length) {
       room.readyPlayerIds = [];
       room.round += 1;
       if (room.round > room.maxRounds) {
-        const winner = room.players.reduce((a, b) => (a.score > b.score ? a : b));
+        const winner = room.mode === 'battle-royale'
+          ? room.players.reduce((a, b) => (a.health > b.health ? a : b))
+          : room.players.reduce((a, b) => (a.score > b.score ? a : b));
         this.endGame(room, winner.id);
         return;
       }
@@ -926,7 +1010,9 @@ export class RoomManager {
     room.readyPlayerIds = [];
     room.round += 1;
     if (room.round > room.maxRounds) {
-      const winner = room.players.reduce((a, b) => (a.score > b.score ? a : b));
+      const winner = room.mode === 'battle-royale'
+        ? room.players.reduce((a, b) => (a.health > b.health ? a : b))
+        : room.players.reduce((a, b) => (a.score > b.score ? a : b));
       this.endGame(room, winner.id);
       return;
     }
@@ -972,7 +1058,9 @@ export class RoomManager {
 
     room.round += 1;
     if (room.round > room.maxRounds) {
-      const winner = room.players.reduce((a, b) => (a.score > b.score ? a : b));
+      const winner = room.mode === 'battle-royale'
+        ? room.players.reduce((a, b) => (a.health > b.health ? a : b))
+        : room.players.reduce((a, b) => (a.score > b.score ? a : b));
       this.endGame(room, winner.id);
       return;
     }
@@ -1006,6 +1094,10 @@ export class RoomManager {
       p.analProbeReturnRound = 0;
       p.currency = 0;
       p.totalEarnedThisGame = 0;
+      if (room.mode === 'battle-royale') {
+        p.health = p.maxHealth || 30;
+        p.shieldHp = 0;
+      }
     });
     const deck = this.decks.get(room.id);
     if (deck) {
@@ -1100,7 +1192,7 @@ export class RoomManager {
 
     // Non-judge left during playing: check if we should advance
     if (room.phase === 'playing') {
-      const expectedSubmissions = room.players.filter((p) => p.id !== room.judgeId).length;
+      const expectedSubmissions = room.players.filter((p) => p.id !== room.judgeId && !(room.mode === 'battle-royale' && p.health <= 0)).length;
       const uniqueSubmitters = new Set(room.submittedCards.map((s) => s.playerId)).size;
       if (uniqueSubmitters >= expectedSubmissions) {
         room.phase = 'judging';

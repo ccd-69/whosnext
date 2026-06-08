@@ -1,6 +1,6 @@
 // Shared game types used by both server and renderer
 
-export type GameMode = 'quick-play' | 'whos-next' | 'two-votes';
+export type GameMode = 'quick-play' | 'whos-next' | 'two-votes' | 'battle-royale';
 export type GamePhase = 'lobby' | 'dealing' | 'playing' | 'judging' | 'round-end' | 'game-over' | 'waiting' | 'voting' | 'ended' | 'reveal';
 
 export type CardEffectType =
@@ -127,6 +127,10 @@ export interface Player {
   userId?: string;                 // linked user account id (if logged in)
   username?: string;              // linked account username (if logged in)
   selectedEffectCardIds: string[]; // effect cards chosen in lobby (max 2) to bring into game
+  // Battle Royale combat fields
+  health: number;
+  maxHealth: number;
+  shieldHp: number;
 }
 
 export interface Card {
@@ -228,6 +232,8 @@ export interface ServerToClientEvents {
   'game-over': (finalScores: Record<string, number>, winnerId: string) => void;
   'error': (message: string) => void;
   'notification': (message: string) => void;
+  'combat-update': (healths: Record<string, number>, shields: Record<string, number>, damageLog: string[]) => void;
+  'player-eliminated': (playerId: string, playerName: string) => void;
   'settings-updated': (settings: Partial<Omit<Room, 'id' | 'code' | 'players' | 'submittedCards' | 'blackCard' | 'judgeId' | 'createdAt' | 'updatedAt'>>) => void;
   'vote-kick-started': (targetId: string, targetName: string, initiatorName: string, timeoutSeconds: number) => void;
   'vote-kick-ended': (targetId: string, targetName: string, success: boolean) => void;

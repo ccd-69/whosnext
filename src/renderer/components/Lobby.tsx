@@ -19,7 +19,7 @@ export default function Lobby() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [maxPlayers, setMaxPlayers] = useState(12);
-  const [maxRounds, setMaxRounds] = useState(mode === 'quick-play' ? 10 : mode === 'two-votes' ? 15 : 20);
+  const [maxRounds, setMaxRounds] = useState(mode === 'quick-play' ? 10 : mode === 'two-votes' ? 15 : mode === 'battle-royale' ? 20 : 20);
   const [startingCards, setStartingCards] = useState(10);
   const [blankCardsEnabled, setBlankCardsEnabled] = useState(false);
   const [cardPacks, setCardPacks] = useState<CardPack[]>(['base']);
@@ -293,7 +293,7 @@ export default function Lobby() {
           Back
         </button>
 
-        <h2 className="text-2xl font-bold">{mode === 'quick-play' ? 'Quick Play' : mode === 'two-votes' ? 'Two Votes' : "Who's Next?"}</h2>
+        <h2 className="text-2xl font-bold">{mode === 'quick-play' ? 'Quick Play' : mode === 'two-votes' ? 'Two Votes' : mode === 'battle-royale' ? 'Battle Royale' : "Who's Next?"}</h2>
 
         <div className="flex flex-col gap-2">
           <label className="text-sm text-white/60">Your Name</label>

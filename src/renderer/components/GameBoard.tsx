@@ -238,6 +238,18 @@ export default function GameBoard() {
       setNotification(msg);
       setTimeout(() => setNotification(''), 5000);
     });
+    const unsubCombat = on('combat-update', (healths, shields, damageLog) => {
+      // Health values are already in the next game-state broadcast,
+      // but we can flash a notification with the damage log
+      if (damageLog.length > 0) {
+        setNotification(damageLog[damageLog.length - 1]);
+        setTimeout(() => setNotification(''), 4000);
+      }
+    });
+    const unsubEliminated = on('player-eliminated', (playerId: string, playerName: string) => {
+      setNotification(`${playerName} has been eliminated!`);
+      setTimeout(() => setNotification(''), 4000);
+    });
 
     return () => {
       unsubState();
@@ -259,6 +271,8 @@ export default function GameBoard() {
       unsubVoteEndStarted();
       unsubVoteEndEnded();
       unsubReportAck();
+      unsubCombat();
+      unsubEliminated();
     };
   }, [connected, on, gameState, emit]);
 
@@ -398,6 +412,8 @@ export default function GameBoard() {
   const isVanilla = room
     ? (room.mode === 'quick-play'
         ? room.maxPlayers === 12 && room.maxRounds === 10 && room.winningScore === 7
+        : room.mode === 'battle-royale'
+        ? room.maxPlayers === 12 && room.maxRounds === 20
         : room.maxPlayers === 12 && room.maxRounds === 20 && room.winningScore === 5)
       && room.startingCards === 10
       && !room.blankCardsEnabled
@@ -417,9 +433,9 @@ export default function GameBoard() {
         <div className="font-bold text-sm truncate">{room.name}</div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-            room.mode === 'quick-play' ? 'bg-accent/20 text-accent' : 'bg-purple-500/20 text-purple-400'
+            room.mode === 'quick-play' ? 'bg-accent/20 text-accent' : room.mode === 'battle-royale' ? 'bg-red-500/20 text-red-400' : 'bg-purple-500/20 text-purple-400'
           }`}>
-            {room.mode === 'quick-play' ? 'Quick Play' : "Who's Next?"}
+            {room.mode === 'quick-play' ? 'Quick Play' : room.mode === 'battle-royale' ? 'Battle Royale' : "Who's Next?"}
           </span>
           <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
             isVanilla ? 'bg-green-500/20 text-green-400' : 'bg-orange-500/20 text-orange-400'
@@ -498,6 +514,19 @@ export default function GameBoard() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                {room.mode === 'battle-royale' && p.maxHealth > 0 && (
+                  <div className="flex flex-col items-end gap-0.5">
+                    <div className="w-16 h-1.5 bg-surface-light rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${
+                          p.health > p.maxHealth * 0.5 ? 'bg-green-500' : p.health > p.maxHealth * 0.25 ? 'bg-yellow-500' : 'bg-red-500'
+                        }`}
+                        style={{ width: `${Math.max(0, (p.health / p.maxHealth) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-white/50">{p.health}/{p.maxHealth}</span>
+                  </div>
+                )}
                 <span className="text-xs text-white/40">${p.currency.toFixed(2)}</span>
                 <span className="font-bold">{p.score}</span>
               </div>

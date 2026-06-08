@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Clock, Users, ArrowRight, Sparkles, Vote, Trophy, ShoppingBag, Lock, Check, LogIn, UserPlus, LogOut, Shield, User as UserIcon, Edit3 } from 'lucide-react';
+import { Zap, Clock, Users, ArrowRight, Sparkles, Vote, Trophy, ShoppingBag, Lock, Check, LogIn, UserPlus, LogOut, Shield, Sword, User as UserIcon, Edit3 } from 'lucide-react';
 import { useSocket } from '../hooks/useSocket.js';
 import { playClick, playHover } from '../audio/sound.js';
 import type { LeaderboardEntry, User, Card, FriendUser, FriendRequest, DMMessage, GroupChat, GroupMessage, GroupMember } from '../../shared/types.js';
@@ -12,7 +12,7 @@ import type { ActiveGame } from '../utils/activeGames.js';
 export default function TitleScreen() {
   const navigate = useNavigate();
   const { emit, on, connected } = useSocket();
-  const [hovered, setHovered] = useState<'quick-play' | 'whos-next' | 'two-votes' | null>(null);
+  const [hovered, setHovered] = useState<'quick-play' | 'whos-next' | 'two-votes' | 'battle-royale' | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showShop, setShowShop] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
@@ -529,6 +529,36 @@ export default function TitleScreen() {
               <span>Anytime</span>
             </div>
             <div className="mt-4 flex items-center gap-2 text-purple-400 font-bold">
+              <span>Start Game</span>
+              <ArrowRight size={18} />
+            </div>
+          </button>
+
+          <button
+            onClick={() => { playClick(); navigate('/lobby/battle-royale'); }}
+            onMouseEnter={() => { setHovered('battle-royale'); playHover(); }}
+            onMouseLeave={() => setHovered(null)}
+            className={`flex-1 glass-card p-6 text-left transition-all duration-300 hover:border-red-500/50 hover:bg-surface-light/80 ${
+              hovered === 'battle-royale' ? 'scale-[1.02] shadow-xl shadow-red-500/20' : ''
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-red-500/20 rounded-lg">
+                <Sword size={24} className="text-red-400" />
+              </div>
+              <h2 className="text-2xl font-bold">Battle Royale</h2>
+            </div>
+            <p className="text-white/60 text-sm mb-4">
+              Last one standing wins. Deal damage with winning cards, survive hidden modifiers, and eliminate your friends.
+            </p>
+            <div className="flex items-center gap-2 text-red-400 font-semibold text-sm">
+              <Users size={16} />
+              <span>3-8 players</span>
+              <span className="mx-2 text-white/20">|</span>
+              <Shield size={16} />
+              <span>30 HP</span>
+            </div>
+            <div className="mt-4 flex items-center gap-2 text-red-400 font-bold">
               <span>Start Game</span>
               <ArrowRight size={18} />
             </div>
