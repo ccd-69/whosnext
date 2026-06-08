@@ -790,19 +790,25 @@ export default function TitleScreen() {
                             const me = group.members.find(m => m.userId === user?.id);
                             const canInvite = me?.role === 'owner' || me?.role === 'mod';
                             if (!canInvite) return <span className="text-white/30">Only owner or moderators can invite.</span>;
-                            const notInGroup = friends.filter(f => !group.members.some(m => m.userId === f.userId));
-                            if (notInGroup.length === 0) return <span className="text-white/30">All friends are already in this group.</span>;
-                            return notInGroup.map((f) => (
-                              <div key={f.userId} className="flex items-center justify-between p-1 rounded hover:bg-surface-light/30">
-                                <span className="truncate">{f.username}</span>
-                                <button
-                                  onClick={() => handleInviteToGroup(group.id, f.userId)}
-                                  className="text-[10px] text-green-400 hover:text-green-300"
-                                >
-                                  Add
-                                </button>
-                              </div>
-                            ));
+                            if (friends.length === 0) return <span className="text-white/30">No friends to invite.</span>;
+                            return friends.map((f) => {
+                              const isInGroup = group.members.some(m => m.userId === f.userId);
+                              return (
+                                <div key={f.userId} className="flex items-center justify-between p-1 rounded hover:bg-surface-light/30">
+                                  <span className="truncate">{f.username}</span>
+                                  {isInGroup ? (
+                                    <span className="text-green-400 text-[10px]">✓</span>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleInviteToGroup(group.id, f.userId)}
+                                      className="text-green-400 hover:text-green-300 text-[10px] font-bold"
+                                    >
+                                      +
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            });
                           })()}
                         </div>
                       </details>
