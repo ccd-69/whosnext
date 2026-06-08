@@ -1,7 +1,7 @@
 import { Room, Player, GameMode, GamePhase, Card, CardPlay, ChatMessage, CustomEmoji } from '../shared/types.js';
 import { getCardsForPacks, shuffleArray, EFFECT_CARDS } from '../shared/deck.js';
 import { recordGameResults, recordSpend, getLeaderboards } from './leaderboard.js';
-import { recordUserStats, updateUserBalance, getUserById } from './userDb.js';
+import { recordUserStats, updateUserBalance, getUserById, addBattleRoyaleXP } from './userDb.js';
 import type { Server as SocketIOServer } from 'socket.io';
 import type { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from '../shared/types.js';
 
@@ -83,6 +83,8 @@ export class RoomManager {
       health: opts.mode === 'battle-royale' ? 30 : 0,
       maxHealth: opts.mode === 'battle-royale' ? 30 : 0,
       shieldHp: 0,
+      damageDealtThisGame: 0,
+      eliminationsThisGame: 0,
     };
     const room: Room = {
       id: roomId,
@@ -158,6 +160,8 @@ export class RoomManager {
       health: room.mode === 'battle-royale' ? room.players[0]?.maxHealth || 30 : 0,
       maxHealth: room.mode === 'battle-royale' ? room.players[0]?.maxHealth || 30 : 0,
       shieldHp: 0,
+      damageDealtThisGame: 0,
+      eliminationsThisGame: 0,
     };
     room.players.push(player);
     room.updatedAt = Date.now();
@@ -193,6 +197,8 @@ export class RoomManager {
       if (room.mode === 'battle-royale') {
         p.health = p.maxHealth || 30;
         p.shieldHp = 0;
+        p.damageDealtThisGame = 0;
+        p.eliminationsThisGame = 0;
       }
     }
     // Grant selected effect cards from user inventory (max 2)
@@ -894,6 +900,7 @@ export class RoomManager {
     }
 
     // Deal damage to all living opponents
+    let totalDamageDealt = 0;
     for (const p of room.players) {
       if (p.id === winnerId) continue;
       if (p.health <= 0) continue; // already eliminated
@@ -914,14 +921,17 @@ export class RoomManager {
       }
       if (dmg > 0) {
         p.health -= dmg;
+        totalDamageDealt += dmg;
         damageLog.push(`${winner.name} dealt ${dmg} damage to ${p.name}!`);
       }
       if (p.health <= 0) {
         p.health = 0;
+        winner.eliminationsThisGame += 1;
         this.io.to(room.id).emit('player-eliminated', p.id, p.name);
         damageLog.push(`${p.name} has been eliminated!`);
       }
     }
+    winner.damageDealtThisGame += totalDamageDealt;
 
     winner.score += 1; // still track score for leaderboard compatibility
     room.phase = 'reveal';
@@ -1033,6 +1043,22 @@ export class RoomManager {
               date: Date.now(),
               won: p.id === winnerId,
             }).catch(() => {});
+
+            // Battle Royale XP
+            if (room.mode === 'battle-royale') {
+              const baseXP = 10;
+              const roundXP = room.round * 3;
+              const dmgXP = p.damageDealtThisGame * 2;
+              const elimXP = p.eliminationsThisGame * 15;
+              const winXP = p.id === winnerId ? 25 : 0;
+              const totalXP = baseXP + roundXP + dmgXP + elimXP + winXP;
+              const result = await addBattleRoyaleXP(p.userId, totalXP);
+              if (result.newPerks.length > 0) {
+                this.io.to(p.socketId).emit('battle-royale-xp', totalXP, result.totalXP, result.newPerks);
+              } else {
+                this.io.to(p.socketId).emit('battle-royale-xp', totalXP, result.totalXP, []);
+              }
+            }
           })();
         }
       }
@@ -1223,6 +1249,8 @@ export class RoomManager {
       if (room.mode === 'battle-royale') {
         p.health = p.maxHealth || 30;
         p.shieldHp = 0;
+        p.damageDealtThisGame = 0;
+        p.eliminationsThisGame = 0;
       }
     });
     const deck = this.decks.get(room.id);

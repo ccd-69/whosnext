@@ -91,6 +91,14 @@ export interface GroupChat {
   createdAt: number;
 }
 
+export interface Perk {
+  id: string;
+  name: string;
+  description: string;
+  cost: number; // XP cost to unlock
+  effect: string;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -112,6 +120,8 @@ export interface User {
   friends: string[]; // array of userIds
   friendRequests: FriendRequest[];
   blockedUsers: string[];
+  battleRoyaleXP: number;
+  unlockedPerks: string[];
 }
 
 export interface Player {
@@ -146,6 +156,8 @@ export interface Player {
   health: number;
   maxHealth: number;
   shieldHp: number;
+  damageDealtThisGame: number;
+  eliminationsThisGame: number;
 }
 
 export interface Card {
@@ -268,6 +280,7 @@ export interface ServerToClientEvents {
   'group-member-update': (groupId: string, members: GroupMember[]) => void;
   'group-created': (group: GroupChat) => void;
   'group-invite-received': (group: GroupChat) => void;
+  'battle-royale-xp': (xpGained: number, totalXP: number, newPerks: Perk[]) => void;
 }
 
 export interface CardPlay {

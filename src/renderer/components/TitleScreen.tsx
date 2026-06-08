@@ -1115,7 +1115,7 @@ export default function TitleScreen() {
 
             {/* Tabs */}
             <div className="flex gap-2">
-              {(['overview', 'recent', 'inventory', 'friends'] as const).map((tab) => (
+              {(['overview', 'recent', 'inventory', 'perks', 'friends'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setProfileTab(tab)}
@@ -1123,7 +1123,7 @@ export default function TitleScreen() {
                     profileTab === tab ? 'bg-accent/20 text-accent' : 'bg-surface-light text-white/60 hover:text-white'
                   }`}
                 >
-                  {tab === 'overview' ? 'Overview' : tab === 'recent' ? 'Recent Games' : tab === 'inventory' ? 'Inventory' : `Friends (${friends.length})`}
+                  {tab === 'overview' ? 'Overview' : tab === 'recent' ? 'Recent Games' : tab === 'inventory' ? 'Inventory' : tab === 'perks' ? 'Perks' : `Friends (${friends.length})`}
                 </button>
               ))}
             </div>
@@ -1233,6 +1233,39 @@ export default function TitleScreen() {
                     return card ? (
                       <span key={`${id}-${i}`} className="text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-400 font-semibold">{card.text}</span>
                     ) : null;
+                  })}
+                </div>
+              </div>
+            )}
+
+            {profileTab === 'perks' && (
+              <div className="flex flex-col gap-4">
+                <div className="glass-card p-3 text-center">
+                  <div className="text-xs text-white/40 uppercase tracking-wider">Battle Royale XP</div>
+                  <div className="text-2xl font-bold text-accent mt-1">{user.battleRoyaleXP || 0} XP</div>
+                </div>
+                <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Unlocked Perks ({(user.unlockedPerks || []).length})</div>
+                {(user.unlockedPerks || []).length === 0 && (
+                  <p className="text-white/40 text-xs text-center py-4">No perks unlocked yet. Play Battle Royale to earn XP!</p>
+                )}
+                <div className="flex flex-col gap-2">
+                  {(user.unlockedPerks || []).map((perkId) => {
+                    const perk = ({
+                      'modifier_chance_1': { name: '+5% Modifier Chance', description: 'White cards have a slightly higher chance to gain a hidden combat modifier.', effect: '+5% hiddenModifier roll' },
+                      'starting_health_1': { name: '+5 Starting Health', description: 'Begin each Battle Royale match with 5 extra HP.', effect: '+5 maxHealth' },
+                      'block_start': { name: 'Start with Block', description: 'Begin each match with 3 temporary shield HP.', effect: '+3 shieldHp at start' },
+                      'rare_modifier_1': { name: '+5% Rare Modifier Chance', description: 'Slightly more likely to roll utility and rare hidden modifiers.', effect: 'Rarity weight shift +5%' },
+                      'second_wind_passive': { name: 'Second Wind', description: 'The first time you would be eliminated, survive with 1 HP once per match.', effect: '1x death negate per game' },
+                      'vampire_touch': { name: 'Vampire Touch', description: 'Winning cards heal you for 1 HP per opponent hit.', effect: '+1 heal per target' },
+                    } as Record<string, {name: string; description: string; effect: string}>)[perkId];
+                    if (!perk) return null;
+                    return (
+                      <div key={perkId} className="glass-card p-3">
+                        <div className="font-semibold text-sm text-accent">{perk.name}</div>
+                        <div className="text-xs text-white/50 mt-1">{perk.description}</div>
+                        <div className="text-[10px] text-white/30 mt-1">Effect: {perk.effect}</div>
+                      </div>
+                    );
                   })}
                 </div>
               </div>

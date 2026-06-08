@@ -28,6 +28,8 @@ export interface DbUser {
   friends: string[];
   friendRequests: import('../shared/types.js').FriendRequest[];
   blockedUsers: string[];
+  battleRoyaleXP: number;
+  unlockedPerks: string[];
   createdAt: number;
 }
 
@@ -89,6 +91,8 @@ export async function registerUser(username: string, password: string, email?: s
     friends: [],
     friendRequests: [],
     blockedUsers: [],
+    battleRoyaleXP: 0,
+    unlockedPerks: [],
     createdAt: Date.now(),
   };
   data.users[userId] = user;
@@ -195,6 +199,8 @@ export async function seedDevUserIfEmpty(): Promise<void> {
     friends: [],
     friendRequests: [],
     blockedUsers: [],
+    battleRoyaleXP: 0,
+    unlockedPerks: [],
     createdAt: Date.now(),
   };
   data.users[userId] = user;
@@ -246,6 +252,38 @@ export async function updateUserStatus(userId: string, status: 'online' | 'away'
   if (!user) return;
   user.status = status;
   await save(data);
+}
+
+export async function addBattleRoyaleXP(userId: string, xp: number): Promise<{ totalXP: number; newPerks: import('../shared/types.js').Perk[] }> {
+  const data = await load();
+  const user = data.users[userId];
+  if (!user) return { totalXP: 0, newPerks: [] };
+  user.battleRoyaleXP += xp;
+  const newPerks: import('../shared/types.js').Perk[] = [];
+  for (const perk of PERK_CATALOG) {
+    if (!user.unlockedPerks.includes(perk.id) && user.battleRoyaleXP >= perk.cost) {
+      user.unlockedPerks.push(perk.id);
+      newPerks.push(perk);
+    }
+  }
+  await save(data);
+  return { totalXP: user.battleRoyaleXP, newPerks };
+}
+
+export const PERK_CATALOG: import('../shared/types.js').Perk[] = [
+  { id: 'modifier_chance_1', name: '+5% Modifier Chance', description: 'White cards have a slightly higher chance to gain a hidden combat modifier.', cost: 50, effect: '+5% hiddenModifier roll' },
+  { id: 'starting_health_1', name: '+5 Starting Health', description: 'Begin each Battle Royale match with 5 extra HP.', cost: 100, effect: '+5 maxHealth' },
+  { id: 'block_start', name: 'Start with Block', description: 'Begin each match with 3 temporary shield HP.', cost: 150, effect: '+3 shieldHp at start' },
+  { id: 'rare_modifier_1', name: '+5% Rare Modifier Chance', description: 'Slightly more likely to roll utility and rare hidden modifiers.', cost: 200, effect: 'Rarity weight shift +5%' },
+  { id: 'second_wind_passive', name: 'Second Wind', description: 'The first time you would be eliminated, survive with 1 HP once per match.', cost: 300, effect: '1x death negate per game' },
+  { id: 'vampire_touch', name: 'Vampire Touch', description: 'Winning cards heal you for 1 HP per opponent hit.', cost: 400, effect: '+1 heal per target' },
+];
+
+export async function getUnlockedPerks(userId: string): Promise<import('../shared/types.js').Perk[]> {
+  const data = await load();
+  const user = data.users[userId];
+  if (!user) return [];
+  return PERK_CATALOG.filter((p) => user.unlockedPerks.includes(p.id));
 }
 
 export async function sendFriendRequest(fromId: string, targetUsername: string): Promise<{ success: boolean; request?: import('../shared/types.js').FriendRequest; error?: string }> {

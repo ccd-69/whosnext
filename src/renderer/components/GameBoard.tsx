@@ -4,7 +4,7 @@ import { useSocket } from '../hooks/useSocket.js';
 import Card from './Card.js';
 import ChatPanel from './ChatPanel.js';
 import type { GameState, GamePhase, Player, Card as CardType, CardPlay, CardEffectType } from '../../shared/types.js';
-import { ArrowLeft, Trophy, Clock, User, CheckCircle, Crown, Settings, PenLine, Zap, Eye, Ban, Shuffle, Plus, Minus, RefreshCw, Flag, UserPlus } from 'lucide-react';
+import { ArrowLeft, Trophy, Clock, User, CheckCircle, Crown, Settings, PenLine, Zap, Eye, Ban, Shuffle, Plus, Minus, RefreshCw, Flag, UserPlus, Skull, Shield } from 'lucide-react';
 import { playClick, playSubmit, playChime, playWin, playError, playJoin } from '../audio/sound.js';
 import { removeActiveGame } from '../utils/activeGames.js';
 import { EFFECT_CARDS as ALL_EFFECT_CARDS } from '../../shared/deck.js';
@@ -48,6 +48,9 @@ export default function GameBoard() {
   // Battle Royale
   const [damageLog, setDamageLog] = useState<string[]>([]);
   const [eliminatedIds, setEliminatedIds] = useState<Set<string>>(new Set());
+  const [brXPGained, setBrXPGained] = useState(0);
+  const [brTotalXP, setBrTotalXP] = useState(0);
+  const [brNewPerks, setBrNewPerks] = useState<import('../../shared/types.js').Perk[]>([]);
 
   // Mini Profile
   const [miniProfilePlayer, setMiniProfilePlayer] = useState<Player | null>(null);
@@ -119,6 +122,9 @@ export default function GameBoard() {
       setShopOpen(false);
       setDamageLog([]);
       setEliminatedIds(new Set());
+      setBrXPGained(0);
+      setBrTotalXP(0);
+      setBrNewPerks([]);
       setNotification('New round started!');
       setTimeout(() => setNotification(''), 3000);
       playChime();
@@ -256,6 +262,15 @@ export default function GameBoard() {
       setNotification(`${playerName} has been eliminated!`);
       setTimeout(() => setNotification(''), 4000);
     });
+    const unsubBRXP = on('battle-royale-xp', (xpGained: number, totalXP: number, newPerks: import('../../shared/types.js').Perk[]) => {
+      setBrXPGained(xpGained);
+      setBrTotalXP(totalXP);
+      setBrNewPerks(newPerks);
+      if (newPerks.length > 0) {
+        setNotification(`New perk unlocked: ${newPerks[0].name}!`);
+        setTimeout(() => setNotification(''), 5000);
+      }
+    });
 
     return () => {
       unsubState();
@@ -279,6 +294,7 @@ export default function GameBoard() {
       unsubReportAck();
       unsubCombat();
       unsubEliminated();
+      unsubBRXP();
     };
   }, [connected, on, gameState, emit]);
 
@@ -457,7 +473,8 @@ export default function GameBoard() {
             <span>Players: {room.players.length}/{room.maxPlayers}</span>
             <span>Rounds: {room.maxRounds}</span>
             <span>Hand Size: {room.startingCards}</span>
-            <span>Win: {room.winningScore} pts</span>
+            {room.mode !== 'battle-royale' && <span>Win: {room.winningScore} pts</span>}
+            {room.mode === 'battle-royale' && <span>HP: {room.players[0]?.maxHealth || 30}</span>}
             {room.blankCardsEnabled && <span>Blank Cards: On</span>}
             {room.buffsEnabled && <span>Buffs: On</span>}
             <span>Packs: {room.cardPacks.join(', ')}</span>
@@ -493,7 +510,7 @@ export default function GameBoard() {
                   {p.name}
                   {p.id === room.judgeId && !isEliminated && <Crown size={12} className="inline text-accent ml-1" />}
                   {p.abductionRounds > 0 && <span className="text-[10px] text-purple-400 ml-1">(abducted)</span>}
-                  {isEliminated && <span className="text-[10px] text-red-400 ml-1">(eliminated)</span>}
+                  {isEliminated && <Skull size={12} className="inline text-red-400 ml-1" />}
                 </button>
                 {!isEliminated && p.id !== gameState?.myPlayerId && p.isConnected && (
                   <button
@@ -528,6 +545,7 @@ export default function GameBoard() {
               <div className="flex items-center gap-2 shrink-0">
                 {room.mode === 'battle-royale' && p.maxHealth > 0 && (
                   <div className="flex flex-col items-end gap-0.5">
+                    {/* Health bar */}
                     <div className="w-16 h-1.5 bg-surface-light rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full ${
@@ -536,7 +554,16 @@ export default function GameBoard() {
                         style={{ width: `${Math.max(0, (p.health / p.maxHealth) * 100)}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-white/50">{p.health}/{p.maxHealth}</span>
+                    {/* Shield bar */}
+                    {!isEliminated && p.shieldHp > 0 && (
+                      <div className="w-16 h-1 bg-surface-light rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-blue-400"
+                          style={{ width: `${Math.min(100, (p.shieldHp / p.maxHealth) * 100)}%` }}
+                        />
+                      </div>
+                    )}
+                    <span className="text-[10px] text-white/50">{p.health}/{p.maxHealth} {p.shieldHp > 0 && <span className="text-blue-400">+{p.shieldHp} shield</span>}</span>
                   </div>
                 )}
                 <span className="text-xs text-white/40">${p.currency.toFixed(2)}</span>
@@ -657,6 +684,24 @@ export default function GameBoard() {
                 ? `${winner?.name || 'Someone'} is the last one standing!`
                 : `${winner?.name || 'Someone'} wins!`}
             </p>
+            {room.mode === 'battle-royale' && brXPGained > 0 && (
+              <div className="mt-4 glass-card p-3 inline-flex flex-col items-center gap-1">
+                <span className="text-xs text-white/40 uppercase tracking-wider">Battle Royale XP</span>
+                <span className="text-2xl font-bold text-accent">+{brXPGained} XP</span>
+                <span className="text-xs text-white/40">Total: {brTotalXP} XP</span>
+              </div>
+            )}
+            {room.mode === 'battle-royale' && brNewPerks.length > 0 && (
+              <div className="mt-3 flex flex-col gap-2">
+                <span className="text-xs text-accent font-bold uppercase tracking-wider">New Perks Unlocked!</span>
+                {brNewPerks.map((perk) => (
+                  <div key={perk.id} className="glass-card p-2 text-left">
+                    <div className="font-semibold text-sm">{perk.name}</div>
+                    <div className="text-xs text-white/50">{perk.description}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-2">
@@ -815,6 +860,7 @@ export default function GameBoard() {
               className="w-full accent-accent"
             />
           </div>
+          {room.mode !== 'battle-royale' && (
           <div className="flex flex-col gap-1">
             <div className="flex justify-between text-xs text-white/60">
               <label>Winning Score</label>
@@ -830,6 +876,7 @@ export default function GameBoard() {
               className="w-full accent-accent"
             />
           </div>
+          )}
           <div className="flex flex-col gap-1">
             <div className="flex justify-between text-xs text-white/60">
               <label>Re-Submit Tokens</label>
@@ -953,7 +1000,7 @@ export default function GameBoard() {
               <button onClick={() => setMiniProfilePlayer(null)} className="text-white/40 hover:text-white">✕</button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className={`grid gap-2 ${room?.mode === 'battle-royale' ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <div className="glass-card p-2 text-center">
                 <div className="text-lg font-bold text-accent">{miniProfilePlayer.score}</div>
                 <div className="text-[10px] text-white/40">Score</div>
@@ -962,6 +1009,12 @@ export default function GameBoard() {
                 <div className="text-lg font-bold text-green-400">${miniProfilePlayer.currency.toFixed(2)}</div>
                 <div className="text-[10px] text-white/40">Currency</div>
               </div>
+              {room?.mode === 'battle-royale' && (
+                <div className="glass-card p-2 text-center">
+                  <div className="text-lg font-bold text-red-400">{miniProfilePlayer.health}/{miniProfilePlayer.maxHealth}</div>
+                  <div className="text-[10px] text-white/40">HP {miniProfilePlayer.shieldHp > 0 && <span className="text-blue-400">+{miniProfilePlayer.shieldHp} shield</span>}</div>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-1">
