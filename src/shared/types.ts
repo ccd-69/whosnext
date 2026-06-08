@@ -212,7 +212,7 @@ export interface Room {
   // Intermission / Shop
   readyPlayerIds: string[];
   shopCards: Card[];
-  shopStockUsed: boolean;
+  shopPurchasedBy: string[]; // player IDs who have already bought from shop this round
   effectsUsedThisRound: { playerName: string; effectType: CardEffectType }[];
   eligibleForLeaderboard: boolean;
 }

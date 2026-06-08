@@ -375,9 +375,8 @@ export default function GameBoard() {
         setTimeout(() => setNotification(''), 2000);
         playSubmit();
       } else {
-        setNotification('Failed to play card — check console for details');
-        setTimeout(() => setNotification(''), 4000);
-        playError();
+        // Error message will come via 'error' event; don't duplicate here
+        console.log('[Client] play-card failed (error details should appear via error event)');
       }
     });
   }
@@ -476,7 +475,7 @@ export default function GameBoard() {
   const sortedPlayers = room ? [...room.players].sort((a, b) => b.score - a.score) : [];
 
   const scoreboardPanel = room && (
-    <div className="flex flex-col gap-3 shrink-0 w-52 h-full overflow-y-auto py-2">
+    <div className="flex flex-col gap-3 shrink-0 w-full md:w-52 h-auto md:h-full overflow-y-auto py-2">
       {/* Game Info */}
       <div className="glass-card p-3 flex flex-col gap-2">
         <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Game Info</div>
@@ -800,7 +799,7 @@ export default function GameBoard() {
             <Clock size={16} />
             <span className="text-sm">Round {room.round} / {room.maxRounds}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap max-w-[50vw] md:max-w-none overflow-x-auto">
             {room.players.map((p: Player) => {
               const isEliminated = room.mode === 'battle-royale' && p.health <= 0;
               return (
@@ -1227,11 +1226,11 @@ export default function GameBoard() {
       )}
 
       {/* Main Game Area + Chat */}
-      <div className="flex-1 flex flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         <div className="flex-1 flex flex-col items-center justify-center gap-8 px-4 py-6 overflow-auto min-w-0">
         {/* Playing phase — horizontal layout: black card left, hand center, scoreboard right */}
         {phase === 'playing' && !isJudge && blackCard && (
-          <div className="flex flex-row items-start justify-center gap-4 w-full min-h-0 px-4">
+          <div className="flex flex-col md:flex-row items-start justify-center gap-4 w-full min-h-0 px-4">
             {/* Black Card Column */}
             <div className="flex flex-col items-center gap-2 shrink-0 py-2">
               <div className="text-white/40 text-xs font-bold uppercase tracking-wider">Question Card</div>
@@ -1318,7 +1317,7 @@ export default function GameBoard() {
                     Pick {effectivePickCount > 1 ? `${effectivePickCount} cards` : 'your best answer'}
                     {totalSelected > 0 && ` (${totalSelected}/${effectivePickCount})`}
                   </p>
-                  <div className="grid grid-cols-5 gap-3 overflow-y-auto px-2 pb-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 overflow-y-auto px-2 pb-2">
                 {gameState.hand.map((card: CardType) => {
                   const isSelected = selectedCardIds.includes(card.id);
                   const canSelect = isSelected || totalSelected < effectivePickCount;
@@ -1410,7 +1409,7 @@ export default function GameBoard() {
 
         {/* Judge waiting + Judging phases — row layout with scoreboard */}
         {!(phase === 'playing' && !isJudge) && (phase === 'playing' || phase === 'judging' || phase === 'voting') && (
-          <div className="flex flex-row items-start justify-center gap-4 w-full min-h-0 px-4">
+          <div className="flex flex-col md:flex-row items-start justify-center gap-4 w-full min-h-0 px-4">
             <div className="flex flex-col items-center justify-center gap-8 flex-1 min-w-0 overflow-y-auto py-6">
               {/* Black Card */}
               {blackCard && (
@@ -1531,9 +1530,11 @@ export default function GameBoard() {
                                 1st Winner
                               </span>
                             )}
-                            <span className="text-xs text-white/40 group-hover:text-white transition-colors">
-                              by {player?.name || 'Unknown'}
-                            </span>
+                            {phase !== 'judging' && (
+                              <span className="text-xs text-white/40 group-hover:text-white transition-colors">
+                                by {player?.name || 'Unknown'}
+                              </span>
+                            )}
                           </div>
                         </button>
                       );
@@ -1564,6 +1565,52 @@ export default function GameBoard() {
               )}
             </div>
             {scoreboardPanel}
+          </div>
+        )}
+
+        {/* Reveal Phase */}
+        {phase === 'reveal' && (
+          <div className="flex flex-col items-center gap-6 animate-bounce-in w-full max-w-3xl mx-auto">
+            <div className="text-center">
+              <Trophy size={48} className="text-accent mx-auto mb-2" />
+              <p className="text-2xl font-bold">
+                {room.players.find((p: Player) => p.id === winnerId)?.name} wins the round!
+              </p>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-white/40 text-sm font-bold uppercase tracking-wider">Winning Answer</p>
+              <div className="flex gap-2 items-center">
+                {winningCards.map((c: CardType) => (
+                  <Card key={c.id} card={c} size="lg" />
+                ))}
+              </div>
+            </div>
+            {submittedCards.filter((s: { playerId: string }) => s.playerId !== winnerId).length > 0 && (
+              <div className="flex flex-col items-center gap-3 w-full max-w-2xl">
+                <p className="text-white/40 text-sm font-bold uppercase tracking-wider">Other Submissions</p>
+                <div className="flex flex-wrap justify-center gap-4">
+                  {submittedCards.filter((s: { playerId: string }) => s.playerId !== winnerId).map((sub: { playerId: string; cards: CardType[]; effectCard?: CardType; submissionId: string; isReSubmit?: boolean }) => {
+                    const player = room.players.find((p: Player) => p.id === sub.playerId);
+                    return (
+                      <div key={sub.submissionId} className="flex flex-col items-center gap-2 opacity-60">
+                        <div className="flex gap-2 items-center">
+                          {sub.cards.map((c) => (
+                            <Card key={c.id} card={c} size="sm" />
+                          ))}
+                          {sub.effectCard && (
+                            <div className="flex flex-col items-center gap-1">
+                              <Card card={sub.effectCard} size="sm" />
+                              <span className="text-[10px] text-yellow-400 font-bold uppercase">Effect</span>
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-xs text-white/40">by {player?.name || 'Unknown'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1600,17 +1647,17 @@ export default function GameBoard() {
                 {room.players
                   .slice()
                   .sort((a, b) => (finalScores[b.name] ?? 0) - (finalScores[a.name] ?? 0))
-                  .map((p) => {
-                    const rankInfo = globalRanks[p.name];
+                  .map((p, idx) => {
+                    const inGameRank = idx + 1;
                     return (
                       <div key={p.id} className={`grid grid-cols-[2.5rem_1fr_3.5rem_4.5rem] gap-2 px-4 py-2 rounded-lg items-center ${
                         p.id === gameState?.myPlayerId ? 'bg-accent/10 ring-1 ring-accent/30' : 'bg-surface-light'
                       }`}>
-                        <span className={`font-bold text-xs ${(rankInfo?.rank ?? 999) <= 3 ? 'text-accent' : 'text-white/40'}`}>
-                          {rankInfo ? `#${rankInfo.rank}` : '—'}
+                        <span className={`font-bold text-xs ${inGameRank <= 3 ? 'text-accent' : 'text-white/40'}`}>
+                          #{inGameRank}
                         </span>
                         <span className="font-semibold text-sm truncate">{p.name}</span>
-                        <span className="font-bold text-sm text-right">{rankInfo?.wins ?? 0}</span>
+                        <span className="font-bold text-sm text-right">{p.score}</span>
                         <span className="font-bold text-sm text-right text-accent">${roundSummary?.currencyEarned[p.name]?.toFixed(2) ?? '0.00'}</span>
                       </div>
                     );
@@ -1645,7 +1692,7 @@ export default function GameBoard() {
             )}
 
             {/* Shop Cards */}
-            {room.shopCards.length > 0 && !room.shopStockUsed && !hasContinued && (
+            {room.shopCards.length > 0 && !room.shopPurchasedBy.includes(gameState?.myPlayerId || '') && !hasContinued && (
               <div className="flex flex-col gap-2 w-full max-w-md">
                 <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Shop — $5 each</div>
                 <div className="flex flex-wrap justify-center gap-3">
@@ -1680,8 +1727,8 @@ export default function GameBoard() {
                 </p>
               </div>
             )}
-            {room.shopStockUsed && (
-              <p className="text-xs text-white/40">Shop stock sold out this round.</p>
+            {room.shopPurchasedBy.includes(gameState?.myPlayerId || '') && (
+              <p className="text-xs text-white/40">You already bought from the shop this round.</p>
             )}
 
             {/* Ready / Waiting */}

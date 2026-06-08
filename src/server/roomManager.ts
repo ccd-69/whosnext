@@ -107,7 +107,7 @@ export class RoomManager {
       updatedAt: Date.now(),
       readyPlayerIds: [],
       shopCards: [],
-      shopStockUsed: false,
+      shopPurchasedBy: [],
       effectsUsedThisRound: [],
       eligibleForLeaderboard: false,
     };
@@ -176,7 +176,7 @@ export class RoomManager {
     room.round = 1;
     room.readyPlayerIds = [];
     room.shopCards = [];
-    room.shopStockUsed = false;
+    room.shopPurchasedBy = [];
     room.effectsUsedThisRound = [];
     room.eligibleForLeaderboard = room.players.length >= 3;
     // Reset per-game counters, buffs, and currency
@@ -390,8 +390,18 @@ export class RoomManager {
   playCard(roomId: string, playerId: string, cards: CardPlay[], effectCardId?: string | null): boolean {
     const room = this.rooms.get(roomId);
     if (!room) { console.log('[RoomManager] playCard: room not found', roomId); return false; }
-    if (room.phase !== 'playing') { console.log('[RoomManager] playCard: phase is', room.phase); return false; }
-    if (room.mode !== 'battle-royale' && playerId === room.judgeId) { console.log('[RoomManager] playCard: player is judge'); return false; }
+    if (room.phase !== 'playing') {
+      console.log('[RoomManager] playCard: phase is', room.phase);
+      const p = room.players.find((pl) => pl.id === playerId);
+      if (p) this.io.to(p.socketId).emit('error', `Cannot play right now — game phase is ${room.phase}.`);
+      return false;
+    }
+    if (room.mode !== 'battle-royale' && playerId === room.judgeId) {
+      console.log('[RoomManager] playCard: player is judge');
+      const p = room.players.find((pl) => pl.id === playerId);
+      if (p) this.io.to(p.socketId).emit('error', 'You are the judge — you cannot play a card this round!');
+      return false;
+    }
 
     const player = room.players.find((p) => p.id === playerId);
     if (!player) { console.log('[RoomManager] playCard: player not found', playerId, 'in', room.players.map((p) => p.id)); return false; }
@@ -445,13 +455,17 @@ export class RoomManager {
     const effectivePickCount = (player.doublePointsHandRounds > 0 && pickCount === 1) ? 1 : pickCount;
     if (cards.length !== effectivePickCount) {
       console.log('[RoomManager] playCard: card count mismatch', cards.length, '!=', effectivePickCount, 'pickCount=', pickCount, 'doubleRounds=', player.doublePointsHandRounds);
+      this.io.to(player.socketId).emit('error', `Wrong number of cards — pick ${effectivePickCount}, you selected ${cards.length}.`);
       return false;
     }
 
     const playedCards: Card[] = [];
     for (const play of cards) {
       if (play.cardId === '__blank__') {
-        if (player.blankCardsRemaining <= 0) return false;
+        if (player.blankCardsRemaining <= 0) {
+          this.io.to(player.socketId).emit('error', 'No blank cards remaining!');
+          return false;
+        }
         player.blankCardsRemaining -= 1;
         playedCards.push({
           id: `blank-${playerId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -462,7 +476,10 @@ export class RoomManager {
         continue;
       }
       const cardIndex = player.cards.findIndex((c) => c.id === play.cardId);
-      if (cardIndex === -1) return false;
+      if (cardIndex === -1) {
+        this.io.to(player.socketId).emit('error', 'Card not found in your hand — it may have already been played or discarded.');
+        return false;
+      }
       const card = player.cards[cardIndex];
       playedCards.push(card);
       player.cards.splice(cardIndex, 1);
@@ -1058,7 +1075,7 @@ export class RoomManager {
   private startRoundEnd(room: Room): void {
     room.phase = 'round-end';
     room.readyPlayerIds = [];
-    room.shopStockUsed = false;
+    room.shopPurchasedBy = [];
 
     // Generate shop cards: 2 random non-exodia effects, avoiding deprioritized ones if possible
     this.generateShopCards(room);
@@ -1201,9 +1218,9 @@ export class RoomManager {
   buyShopCard(roomId: string, playerId: string, cardId: string): { success: boolean; remainingCurrency: number } {
     const room = this.rooms.get(roomId);
     if (!room || room.phase !== 'round-end') return { success: false, remainingCurrency: 0 };
-    if (room.shopStockUsed) return { success: false, remainingCurrency: 0 };
     const player = room.players.find((p) => p.id === playerId);
     if (!player) return { success: false, remainingCurrency: 0 };
+    if (room.shopPurchasedBy.includes(playerId)) return { success: false, remainingCurrency: player.currency };
     const cost = 5;
     if (player.currency < cost) return { success: false, remainingCurrency: player.currency };
 
@@ -1211,12 +1228,13 @@ export class RoomManager {
     if (cardIndex === -1) return { success: false, remainingCurrency: player.currency };
 
     const boughtCard = room.shopCards[cardIndex];
-    const unsoldCard = room.shopCards.find((c) => c.id !== cardId);
 
     player.currency -= cost;
     player.totalEarnedThisGame -= cost; // spending reduces net earned but not tracked separately here
     player.effectCards.push({ ...boughtCard });
-    room.shopStockUsed = true;
+    room.shopPurchasedBy.push(playerId);
+    // Remove bought card from shop so it can't be bought again
+    room.shopCards.splice(cardIndex, 1);
 
     // Return unsold card to deck as deprioritized
     const deck = this.decks.get(room.id);
@@ -1321,7 +1339,7 @@ export class RoomManager {
     room.submittedCards = [];
     room.readyPlayerIds = [];
     room.shopCards = [];
-    room.shopStockUsed = false;
+    room.shopPurchasedBy = [];
     room.effectsUsedThisRound = [];
     room.eligibleForLeaderboard = false;
     room.players.forEach((p) => {
