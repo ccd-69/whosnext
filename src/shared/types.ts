@@ -15,7 +15,22 @@ export type CardEffectType =
   | 'steal_card'           // steal a card from another player
   | 'double_points_hand'   // all your cards award 2x for 1 round
   | 'card_quality_down'    // target draws half cards for 1 round
-  | 'first_of_month';      // steals 1 point from top 2 players
+  | 'first_of_month'       // steals 1 point from top 2 players
+  // Battle Royale hidden modifiers (assigned to white cards, revealed on win)
+  | 'light_strike'         // +1 damage to one random opponent
+  | 'heavy_blow'           // +3 damage to one random opponent
+  | 'cleave'               // +2 damage to all opponents
+  | 'execute'              // insta-kill one random opponent below 10 HP
+  | 'block'                // winner gains +3 shieldHp
+  | 'shield_up'            // winner gains +5 shieldHp
+  | 'evade'                // winner heals 2 HP
+  | 'draw_extra'           // winner draws 2 cards immediately
+  | 'force_discard'        // one random opponent discards 1 card
+  | 'cleanse'              // winner heals 3 HP
+  | 'double_damage'        // winner's base damage doubled this round
+  | 'reflect'              // winner heals 1 HP per opponent hit
+  | 'second_wind'          // winner draws 3 cards immediately
+  | 'bonus_vote';          // +1 extra damage per opponent submission
 
 export interface CardEffect {
   type: CardEffectType;
@@ -139,7 +154,8 @@ export interface Card {
   type: 'black' | 'white';
   pickCount?: number; // for black cards: how many white cards to play
   isBlank?: boolean;  // for white cards: player can type custom text
-  effect?: CardEffect; // special effect card
+  effect?: CardEffect; // special effect card (shop / inventory)
+  hiddenModifier?: CardEffect; // Battle Royale: secret combat effect assigned to white cards
 }
 
 export interface ChatMessage {

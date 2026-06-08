@@ -234,7 +234,9 @@ export class RoomManager {
     }
     const template = deck.whiteDeck.pop();
     if (!template) return;
-    const card = { ...template, id: crypto.randomUUID() };
+    const card: Card = { ...template, id: crypto.randomUUID() };
+    // Strip any lingering hidden modifier from previous rounds
+    delete card.hiddenModifier;
     if (card.effect) {
       // Effect cards no longer drop randomly — discard and draw a replacement
       deck.whiteDiscard.push(card);
@@ -242,6 +244,26 @@ export class RoomManager {
       return;
     }
     player.cards.push(card);
+    // Battle Royale: 15% chance to assign a hidden combat modifier
+    if (room.mode === 'battle-royale' && Math.random() < 0.15) {
+      card.hiddenModifier = this.rollHiddenModifier();
+    }
+  }
+
+  private rollHiddenModifier(): import('../shared/types.js').CardEffect {
+    const roll = Math.random();
+    const common: import('../shared/types.js').CardEffectType[] = ['light_strike', 'heavy_blow', 'cleave', 'block', 'shield_up'];
+    const utility: import('../shared/types.js').CardEffectType[] = ['draw_extra', 'force_discard', 'steal_card', 'evade', 'cleanse'];
+    const rare: import('../shared/types.js').CardEffectType[] = ['execute', 'double_damage', 'reflect', 'second_wind', 'bonus_vote'];
+    let type: import('../shared/types.js').CardEffectType;
+    if (roll < 0.60) {
+      type = common[Math.floor(Math.random() * common.length)];
+    } else if (roll < 0.85) {
+      type = utility[Math.floor(Math.random() * utility.length)];
+    } else {
+      type = rare[Math.floor(Math.random() * rare.length)];
+    }
+    return { type };
   }
 
   private dealCards(room: Room, previousSubmissions?: { playerId: string; cards: Card[] }[]): void {
@@ -772,13 +794,117 @@ export class RoomManager {
     if (!winner) return false;
 
     const damageLog: string[] = [];
-    const baseDamage = 3;
+    let baseDamage = 3;
+    let bonusDamageAll = 0;
+    let bonusDamageSingle = 0;
+    let singleTargetDealt = false;
+    let winnerHeal = 0;
+    let winnerShield = 0;
+    let winnerDraw = 0;
+    let executeTargetId: string | undefined;
+    let forceDiscardTargetId: string | undefined;
 
+    // Reveal hidden modifier on the winning submission
+    const modifierCard = winningSub.cards.find((c) => c.hiddenModifier);
+    const mod = modifierCard?.hiddenModifier;
+    if (mod) {
+      const modName = mod.type.replace(/_/g, ' ');
+      this.io.to(room.id).emit('notification', `Hidden modifier revealed: ${modName.toUpperCase()}!`);
+      damageLog.push(`Hidden modifier: ${modName.toUpperCase()}`);
+
+      switch (mod.type) {
+        case 'light_strike': bonusDamageSingle += 1; break;
+        case 'heavy_blow': bonusDamageSingle += 3; break;
+        case 'cleave': bonusDamageAll += 2; break;
+        case 'execute': {
+          const victims = room.players.filter((p) => p.id !== winnerId && p.health > 0 && p.health <= 10);
+          if (victims.length > 0) {
+            executeTargetId = victims[Math.floor(Math.random() * victims.length)].id;
+          }
+          break;
+        }
+        case 'block': winnerShield += 3; break;
+        case 'shield_up': winnerShield += 5; break;
+        case 'evade': winnerHeal += 2; break;
+        case 'draw_extra': winnerDraw += 2; break;
+        case 'force_discard': {
+          const targets = room.players.filter((p) => p.id !== winnerId && p.health > 0 && p.cards.length > 0);
+          if (targets.length > 0) forceDiscardTargetId = targets[Math.floor(Math.random() * targets.length)].id;
+          break;
+        }
+        case 'cleanse': winnerHeal += 3; break;
+        case 'double_damage': baseDamage *= 2; break;
+        case 'reflect': winnerHeal += room.players.filter((p) => p.id !== winnerId && p.health > 0).length; break;
+        case 'second_wind': winnerDraw += 3; break;
+        case 'bonus_vote': bonusDamageAll += room.submittedCards.filter((s) => s.playerId !== winnerId).length; break;
+        case 'steal_card': {
+          const targets = room.players.filter((p) => p.id !== winnerId && p.health > 0 && p.cards.length > 0);
+          if (targets.length > 0) {
+            const target = targets[Math.floor(Math.random() * targets.length)];
+            const deck = this.decks.get(room.id);
+            if (deck && target.cards.length > 0) {
+              const idx = Math.floor(Math.random() * target.cards.length);
+              const stolen = target.cards.splice(idx, 1)[0];
+              winner.cards.push(stolen);
+              damageLog.push(`${winner.name} stole a card from ${target.name}!`);
+              this.io.to(target.socketId).emit('hand-changed', `${winner.name} stole a card from your hand!`);
+              this.io.to(winner.socketId).emit('hand-changed', `You stole a card from ${target.name}!`);
+            }
+          }
+          break;
+        }
+      }
+    }
+
+    // Apply execute before normal damage
+    if (executeTargetId) {
+      const victim = room.players.find((p) => p.id === executeTargetId);
+      if (victim && victim.health > 0) {
+        victim.health = 0;
+        this.io.to(room.id).emit('player-eliminated', victim.id, victim.name);
+        damageLog.push(`${victim.name} was EXECUTED!`);
+      }
+    }
+
+    // Apply winner shield / heal / draw immediately
+    if (winnerShield > 0) {
+      winner.shieldHp += winnerShield;
+      damageLog.push(`${winner.name} gained +${winnerShield} shield!`);
+    }
+    if (winnerHeal > 0) {
+      winner.health = Math.min(winner.maxHealth || 30, winner.health + winnerHeal);
+      damageLog.push(`${winner.name} healed +${winnerHeal} HP!`);
+    }
+    if (winnerDraw > 0) {
+      for (let i = 0; i < winnerDraw; i++) {
+        this.drawCardForPlayer(room, winner);
+      }
+      damageLog.push(`${winner.name} drew ${winnerDraw} card(s)!`);
+    }
+    if (forceDiscardTargetId) {
+      const target = room.players.find((p) => p.id === forceDiscardTargetId);
+      const deck = this.decks.get(room.id);
+      if (target && target.cards.length > 0 && deck) {
+        const idx = Math.floor(Math.random() * target.cards.length);
+        const discarded = target.cards.splice(idx, 1)[0];
+        deck.whiteDiscard.push(discarded);
+        damageLog.push(`${target.name} was forced to discard a card!`);
+        this.io.to(target.socketId).emit('hand-changed', `A hidden modifier forced you to discard a card!`);
+      }
+    }
+
+    // Deal damage to all living opponents
     for (const p of room.players) {
       if (p.id === winnerId) continue;
       if (p.health <= 0) continue; // already eliminated
 
-      let dmg = baseDamage;
+      let dmg = baseDamage + bonusDamageAll;
+      // Single-target bonus applies to the first eligible opponent
+      if (bonusDamageSingle > 0 && !singleTargetDealt) {
+        singleTargetDealt = true;
+        dmg += bonusDamageSingle;
+      }
+
       // Apply shield first
       if (p.shieldHp > 0) {
         const absorbed = Math.min(p.shieldHp, dmg);
