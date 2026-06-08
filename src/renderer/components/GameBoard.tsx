@@ -52,6 +52,11 @@ export default function GameBoard() {
   const [brTotalXP, setBrTotalXP] = useState(0);
   const [brNewPerks, setBrNewPerks] = useState<import('../../shared/types.js').Perk[]>([]);
 
+  // Voting (Battle Royale)
+  const [votingSubmissions, setVotingSubmissions] = useState<{ submissionId: string; playerId: string; playerName: string; cards: CardType[]; effectCard?: CardType }[]>([]);
+  const [voteCounts, setVoteCounts] = useState<Record<string, number>>({});
+  const [hasVoted, setHasVoted] = useState(false);
+
   // Mini Profile
   const [miniProfilePlayer, setMiniProfilePlayer] = useState<Player | null>(null);
 
@@ -125,6 +130,9 @@ export default function GameBoard() {
       setBrXPGained(0);
       setBrTotalXP(0);
       setBrNewPerks([]);
+      setVotingSubmissions([]);
+      setVoteCounts({});
+      setHasVoted(false);
       setNotification('New round started!');
       setTimeout(() => setNotification(''), 3000);
       playChime();
@@ -272,6 +280,20 @@ export default function GameBoard() {
       }
     });
 
+    const unsubVotingStarted = on('voting-started', (submissions) => {
+      setVotingSubmissions(submissions);
+      setHasVoted(false);
+      setVoteCounts({});
+    });
+
+    const unsubVoteCast = on('vote-cast', (submissionId: string, _voterId: string, totalVotes: number) => {
+      setVoteCounts((prev) => ({ ...prev, [submissionId]: totalVotes }));
+    });
+
+    const unsubVotePhaseEnded = on('vote-phase-ended', (_winnerSubmissionId: string, counts: Record<string, number>) => {
+      setVoteCounts(counts);
+    });
+
     return () => {
       unsubState();
       unsubPhase();
@@ -295,6 +317,9 @@ export default function GameBoard() {
       unsubCombat();
       unsubEliminated();
       unsubBRXP();
+      unsubVotingStarted();
+      unsubVoteCast();
+      unsubVotePhaseEnded();
     };
   }, [connected, on, gameState, emit]);
 
@@ -1384,7 +1409,7 @@ export default function GameBoard() {
         )}
 
         {/* Judge waiting + Judging phases — row layout with scoreboard */}
-        {!(phase === 'playing' && !isJudge) && (phase === 'playing' || phase === 'judging') && (
+        {!(phase === 'playing' && !isJudge) && (phase === 'playing' || phase === 'judging' || phase === 'voting') && (
           <div className="flex flex-row items-start justify-center gap-4 w-full min-h-0 px-4">
             <div className="flex flex-col items-center justify-center gap-8 flex-1 min-w-0 overflow-y-auto py-6">
               {/* Black Card */}
@@ -1394,6 +1419,59 @@ export default function GameBoard() {
                     {isJudge ? 'You are the Judge' : 'Question Card'}
                   </div>
                   <Card card={blackCard} size="lg" />
+                </div>
+              )}
+
+              {/* Voting phase (Battle Royale) */}
+              {phase === 'voting' && (
+                <div className="flex flex-col items-center gap-4 w-full">
+                  <p className="text-white/60 font-semibold text-lg">Vote for the best answer!</p>
+                  <div className="flex flex-wrap justify-center gap-4">
+                    {votingSubmissions.map((sub) => {
+                      const myVoteCount = voteCounts[sub.submissionId] || 0;
+                      const isMySubmission = sub.playerId === gameState?.myPlayerId;
+                      const isEliminated = (myPlayer?.health ?? 1) <= 0;
+                      const alreadyVoted = hasVoted || isMySubmission || isEliminated;
+                      return (
+                        <button
+                          key={sub.submissionId}
+                          onClick={() => {
+                            if (!alreadyVoted) {
+                              emit('vote-submission', sub.submissionId, (success: boolean) => {
+                                if (success) setHasVoted(true);
+                              });
+                              playClick();
+                            }
+                          }}
+                          className={`flex flex-col items-center gap-2 group ${alreadyVoted ? 'opacity-70 cursor-default' : 'cursor-pointer hover:scale-105 transition-transform'}`}
+                        >
+                          <div className="flex gap-2 items-center">
+                            {sub.cards.map((c) => (
+                              <Card key={c.id} card={c} size="md" />
+                            ))}
+                            {sub.effectCard && (
+                              <div className="flex flex-col items-center gap-1">
+                                <Card card={sub.effectCard} size="sm" />
+                                <span className="text-[10px] text-yellow-400 font-bold uppercase">Effect</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-white/40">{sub.playerName}</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-accent/20 text-accent font-bold">
+                              {myVoteCount} vote{myVoteCount !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {hasVoted && (
+                    <p className="text-white/40 text-sm">You voted! Waiting for others...</p>
+                  )}
+                  {(!hasVoted && (myPlayer?.health ?? 1) > 0) && (
+                    <p className="text-white/40 text-sm">Click a submission to vote for it</p>
+                  )}
                 </div>
               )}
 

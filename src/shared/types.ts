@@ -195,7 +195,7 @@ export interface Room {
   phase: GamePhase;
   players: Player[];
   blackCard?: Card;
-  submittedCards: { playerId: string; cards: Card[]; effectCard?: Card; submissionId: string; isReSubmit: boolean }[];
+  submittedCards: { playerId: string; cards: Card[]; effectCard?: Card; submissionId: string; isReSubmit: boolean; votes?: string[] }[];
   judgeId?: string;
   round: number;
   maxRounds: number;
@@ -281,6 +281,9 @@ export interface ServerToClientEvents {
   'group-created': (group: GroupChat) => void;
   'group-invite-received': (group: GroupChat) => void;
   'battle-royale-xp': (xpGained: number, totalXP: number, newPerks: Perk[]) => void;
+  'voting-started': (submissions: { submissionId: string; playerId: string; playerName: string; cards: Card[]; effectCard?: Card }[]) => void;
+  'vote-cast': (submissionId: string, voterId: string, totalVotes: number) => void;
+  'vote-phase-ended': (winnerSubmissionId: string, voteCounts: Record<string, number>) => void;
 }
 
 export interface CardPlay {
@@ -326,6 +329,7 @@ export interface ClientToServerEvents {
   'report-player': (targetId: string, reason: string) => void;
   'player-ready': () => void;
   'buy-shop-card': (cardId: string, cb: (success: boolean, remainingCurrency: number) => void) => void;
+  'vote-submission': (submissionId: string, cb: (success: boolean) => void) => void;
   'force-next-round': () => void;
   'get-leaderboards': () => void;
   'register': (username: string, password: string, email: string | undefined, cb: (success: boolean, message: string, user?: User) => void) => void;

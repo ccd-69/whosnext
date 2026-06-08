@@ -364,6 +364,13 @@ export class RoomManager {
     this.dealCards(room, previousSubmissions);
 
     // Judge rotation — skip abducted, disconnected, and eliminated players
+    if (room.mode === 'battle-royale') {
+      room.judgeId = undefined;
+      room.phase = 'playing';
+      this.broadcastState(room);
+      this.io.to(room.id).emit('round-start', room.blackCard, '');
+      return;
+    }
     let attempts = 0;
     let judgeIndex = (room.round - 1) % room.players.length;
     while (
@@ -384,7 +391,7 @@ export class RoomManager {
     const room = this.rooms.get(roomId);
     if (!room) { console.log('[RoomManager] playCard: room not found', roomId); return false; }
     if (room.phase !== 'playing') { console.log('[RoomManager] playCard: phase is', room.phase); return false; }
-    if (playerId === room.judgeId) { console.log('[RoomManager] playCard: player is judge'); return false; }
+    if (room.mode !== 'battle-royale' && playerId === room.judgeId) { console.log('[RoomManager] playCard: player is judge'); return false; }
 
     const player = room.players.find((p) => p.id === playerId);
     if (!player) { console.log('[RoomManager] playCard: player not found', playerId, 'in', room.players.map((p) => p.id)); return false; }
@@ -408,10 +415,26 @@ export class RoomManager {
         room.submittedCards.push({ playerId, cards: [forcedCard] });
         this.io.to(room.id).emit('card-played', playerId);
         this.io.to(room.id).emit('notification', `${player.name} was forced to play a random card!`);
-        const expectedSubmissions = room.players.filter((p) => p.id !== room.judgeId && p.abductionRounds === 0 && !(room.mode === 'battle-royale' && p.health <= 0)).length;
+        const expectedSubmissions = room.mode === 'battle-royale'
+          ? room.players.filter((p) => p.abductionRounds === 0 && !(p.health <= 0)).length
+          : room.players.filter((p) => p.id !== room.judgeId && p.abductionRounds === 0 && !(room.mode === 'battle-royale' && p.health <= 0)).length;
         const uniqueSubmitters = new Set(room.submittedCards.map((s) => s.playerId)).size;
         if (uniqueSubmitters >= expectedSubmissions) {
-          room.phase = 'judging';
+          if (room.mode === 'battle-royale') {
+            room.phase = 'voting';
+            for (const sub of room.submittedCards) {
+              if (!sub.votes) sub.votes = [];
+            }
+            this.io.to(room.id).emit('voting-started', room.submittedCards.map((s) => ({
+              submissionId: s.submissionId,
+              playerId: s.playerId,
+              playerName: room.players.find((p) => p.id === s.playerId)?.name || 'Unknown',
+              cards: s.cards,
+              effectCard: s.effectCard,
+            })));
+          } else {
+            room.phase = 'judging';
+          }
         }
         this.broadcastState(room);
         return true;
@@ -570,10 +593,28 @@ export class RoomManager {
     this.io.to(room.id).emit('card-played', playerId);
 
     // Check if everyone except judge has played (count unique submitters, skip abducted and eliminated)
-    const expectedSubmissions = room.players.filter((p) => p.id !== room.judgeId && p.abductionRounds === 0 && !(room.mode === 'battle-royale' && p.health <= 0)).length;
+    const expectedSubmissions = room.mode === 'battle-royale'
+      ? room.players.filter((p) => p.abductionRounds === 0 && !(p.health <= 0)).length
+      : room.players.filter((p) => p.id !== room.judgeId && p.abductionRounds === 0 && !(room.mode === 'battle-royale' && p.health <= 0)).length;
     const uniqueSubmitters = new Set(room.submittedCards.map((s) => s.playerId)).size;
     if (uniqueSubmitters >= expectedSubmissions) {
-      room.phase = 'judging';
+      if (room.mode === 'battle-royale') {
+        room.phase = 'voting';
+        // Initialize votes array on each submission
+        for (const sub of room.submittedCards) {
+          if (!sub.votes) sub.votes = [];
+        }
+        // Emit voting-started with sanitized submissions (no playerId exposure yet)
+        this.io.to(room.id).emit('voting-started', room.submittedCards.map((s) => ({
+          submissionId: s.submissionId,
+          playerId: s.playerId,
+          playerName: room.players.find((p) => p.id === s.playerId)?.name || 'Unknown',
+          cards: s.cards,
+          effectCard: s.effectCard,
+        })));
+      } else {
+        room.phase = 'judging';
+      }
       this.broadcastState(room);
     } else {
       this.broadcastState(room);
@@ -961,6 +1002,57 @@ export class RoomManager {
 
     this.broadcastState(room);
     return true;
+  }
+
+  castVote(roomId: string, playerId: string, submissionId: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room || room.phase !== 'voting') return false;
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player || player.health <= 0) return false;
+    const submission = room.submittedCards.find((s) => s.submissionId === submissionId);
+    if (!submission) return false;
+    // Can't vote for yourself
+    if (submission.playerId === playerId) return false;
+    // Initialize votes array if needed
+    if (!submission.votes) submission.votes = [];
+    // Prevent double voting
+    if (submission.votes.includes(playerId)) return false;
+    // Also prevent voting for multiple submissions (one vote per player)
+    for (const sub of room.submittedCards) {
+      if (!sub.votes) sub.votes = [];
+      if (sub.votes.includes(playerId)) return false;
+    }
+    submission.votes.push(playerId);
+    this.io.to(room.id).emit('vote-cast', submissionId, playerId, submission.votes.length);
+    // Check if all eligible voters have voted
+    const eligibleVoters = room.players.filter((p) => p.id !== submission.playerId && p.health > 0).length;
+    const totalVotesCast = room.submittedCards.reduce((sum, s) => sum + (s.votes?.length || 0), 0);
+    if (totalVotesCast >= eligibleVoters) {
+      this.resolveVoteRound(room);
+    }
+    return true;
+  }
+
+  private resolveVoteRound(room: Room): boolean {
+    // Find submission with most votes
+    let winnerSub = room.submittedCards[0];
+    let maxVotes = 0;
+    for (const sub of room.submittedCards) {
+      const voteCount = sub.votes?.length || 0;
+      if (voteCount > maxVotes) {
+        maxVotes = voteCount;
+        winnerSub = sub;
+      }
+    }
+    // Build vote counts for client
+    const voteCounts: Record<string, number> = {};
+    for (const sub of room.submittedCards) {
+      voteCounts[sub.submissionId] = sub.votes?.length || 0;
+    }
+    this.io.to(room.id).emit('vote-phase-ended', winnerSub.submissionId, voteCounts);
+    // Transition to reveal via combat resolution
+    const winnerId = winnerSub.playerId;
+    return this.resolveCombatRound(room, winnerId, winnerSub);
   }
 
   private startRoundEnd(room: Room): void {

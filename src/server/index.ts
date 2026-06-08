@@ -163,6 +163,13 @@ io.on('connection', (socket) => {
     cb(roomManager.judgePick(roomId, playerId, submissionId));
   });
 
+  socket.on('vote-submission', (submissionId, cb) => {
+    const roomId = socket.data.roomId;
+    const playerId = socket.data.playerId;
+    if (!roomId || !playerId) return cb(false);
+    cb(roomManager.castVote(roomId, playerId, submissionId));
+  });
+
   socket.on('next-round', () => {
     const roomId = socket.data.roomId;
     if (!roomId) return;
