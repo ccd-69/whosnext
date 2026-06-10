@@ -327,22 +327,22 @@ export default function TitleScreen() {
   return (
     <div className="flex h-full w-full relative overflow-hidden">
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto relative">
+      <div className="flex-1 flex flex-col items-center justify-start sm:justify-center overflow-y-auto relative">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-20 left-20 w-64 h-64 bg-accent/10 rounded-full blur-3xl animate-pulse" />
           <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
         </div>
 
-        <div className="relative z-10 flex flex-col items-center justify-center gap-6 px-4 max-w-5xl w-full h-full">
+        <div className="relative z-10 flex flex-col items-center justify-start lg:justify-center gap-6 px-4 max-w-5xl w-full min-h-full py-4">
         {/* Logo */}
         <div className="flex flex-col items-center gap-2">
           <div className="flex items-center gap-3">
             <Sparkles size={40} className="text-accent" />
-            <h1 className="text-5xl font-black tracking-tight">
+            <h1 className="text-3xl sm:text-5xl font-black tracking-tight">
               Who's Next?
             </h1>
           </div>
-          <p className="text-lg text-white/60 text-center">
+          <p className="text-base sm:text-lg text-white/60 text-center">
             The party card game where terrible answers win.
           </p>
         </div>
@@ -443,22 +443,22 @@ export default function TitleScreen() {
         )}
 
         {/* Game Mode Cards */}
-        <div className="flex flex-col sm:flex-row flex-wrap gap-4 w-full items-stretch justify-center">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 w-full items-stretch justify-center">
           <button
             onClick={() => { playClick(); navigate('/lobby/quick-play'); }}
             onMouseEnter={() => { setHovered('quick-play'); playHover(); }}
             onMouseLeave={() => setHovered(null)}
-            className={`flex-1 flex flex-col glass-card p-6 text-left transition-all duration-300 hover:border-accent/50 hover:bg-surface-light/80 ${
+            className={`flex-none sm:flex-1 flex flex-col glass-card p-4 sm:p-6 text-left transition-all duration-300 hover:border-accent/50 hover:bg-surface-light/80 ${
               hovered === 'quick-play' ? 'scale-[1.02] shadow-xl shadow-accent/20' : ''
             }`}
           >
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-accent/20 rounded-lg">
-                <Zap size={24} className="text-accent" />
+            <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+              <div className="p-1.5 sm:p-2 bg-accent/20 rounded-lg">
+                <Zap size={20} className="sm:size-6 text-accent" />
               </div>
-              <h2 className="text-2xl font-bold">Quick Play</h2>
+              <h2 className="text-xl sm:text-2xl font-bold">Quick Play</h2>
             </div>
-            <p className="text-white/60 text-sm mb-4">
+            <p className="text-white/60 text-xs sm:text-sm mb-2 sm:mb-4">
               Everyone plays together in real-time. Fast rounds, instant laughs. Perfect for parties.
             </p>
             <div className="flex items-center gap-2 text-accent font-semibold text-sm">
@@ -468,9 +468,9 @@ export default function TitleScreen() {
               <Clock size={16} />
               <span>15-30 min</span>
             </div>
-            <div className="mt-auto pt-4 flex items-center gap-2 text-accent font-bold">
+            <div className="mt-auto pt-2 sm:pt-4 flex items-center gap-2 text-accent font-bold">
               <span>Start Game</span>
-              <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+              <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
             </div>
           </button>
 
@@ -482,9 +482,9 @@ export default function TitleScreen() {
               hovered === 'two-votes' ? 'scale-[1.02] shadow-xl shadow-green-500/20' : ''
             }`}
           >
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-green-500/20 rounded-lg">
-                <Vote size={24} className="text-green-400" />
+            <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+              <div className="p-1.5 sm:p-2 bg-green-500/20 rounded-lg">
+                <Vote size={20} className="sm:size-6 text-green-400" />
               </div>
               <h2 className="text-2xl font-bold">Two Votes</h2>
             </div>
@@ -512,9 +512,9 @@ export default function TitleScreen() {
               hovered === 'whos-next' ? 'scale-[1.02] shadow-xl shadow-purple-500/20' : ''
             }`}
           >
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-purple-500/20 rounded-lg">
-                <Clock size={24} className="text-purple-400" />
+            <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+              <div className="p-1.5 sm:p-2 bg-purple-500/20 rounded-lg">
+                <Clock size={20} className="sm:size-6 text-purple-400" />
               </div>
               <h2 className="text-2xl font-bold">Who's Next?</h2>
             </div>
@@ -542,9 +542,9 @@ export default function TitleScreen() {
               hovered === 'battle-royale' ? 'scale-[1.02] shadow-xl shadow-red-500/20' : ''
             }`}
           >
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-red-500/20 rounded-lg">
-                <Sword size={24} className="text-red-400" />
+            <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+              <div className="p-1.5 sm:p-2 bg-red-500/20 rounded-lg">
+                <Sword size={20} className="sm:size-6 text-red-400" />
               </div>
               <h2 className="text-2xl font-bold">Battle Royale</h2>
             </div>
