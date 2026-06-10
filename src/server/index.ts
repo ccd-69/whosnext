@@ -49,6 +49,7 @@ io.use((socket, next) => {
 
 const roomManager = new RoomManager(io);
 const onlineUsers = new Set<string>(); // userIds currently connected
+const userSockets = new Map<string, string>(); // userId -> socket.id (latest connection)
 
 // Health check for deployment platforms
 app.get('/health', (_req, res) => {
@@ -322,12 +323,18 @@ io.on('connection', (socket) => {
 
   socket.on('register', async (username, password, email, cb) => {
     try {
-      const result = await registerUser(username, password, email || undefined);
+      const result = await registerUser(username, password, email || '');
       if (result.success && result.user) {
         socket.data.userId = result.user.id;
         socket.data.username = result.user.username;
         onlineUsers.add(result.user.id);
+        userSockets.set(result.user.id, socket.id);
         await updateUserStatus(result.user.id, 'online');
+        const reqSession = (socket.request as any).session;
+        if (reqSession) {
+          reqSession.userId = result.user.id;
+          reqSession.save?.();
+        }
         socket.emit('auth-success', result.user);
       } else {
         socket.emit('auth-error', result.error || 'Registration failed');
@@ -347,11 +354,20 @@ io.on('connection', (socket) => {
         socket.data.userId = result.user.id;
         socket.data.username = result.user.username;
         onlineUsers.add(result.user.id);
+        userSockets.set(result.user.id, socket.id);
         await updateUserStatus(result.user.id, 'online');
+        const reqSession = (socket.request as any).session;
+        if (reqSession) {
+          reqSession.userId = result.user.id;
+          reqSession.save?.();
+        }
         // Notify friends that user is online
         const friends = await getFriendUsers(result.user.id);
         for (const f of friends) {
-          io.emit('friend-status-update', result.user.id, 'online');
+          const targetSocketId = userSockets.get(f.userId);
+          if (targetSocketId) {
+            io.to(targetSocketId).emit('friend-status-update', result.user.id, 'online');
+          }
         }
         socket.emit('auth-success', result.user);
       } else {
@@ -365,12 +381,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('request-password-reset', async (username, cb) => {
+  socket.on('request-password-reset', async (username, email, cb) => {
     try {
-      const result = await requestPasswordReset(username);
-      if (result.success) {
-        socket.emit('notification', `Password reset code: ${result.token} — Enter this code below to set a new password.`);
-      }
+      const result = await requestPasswordReset(username, email);
       cb(result.success, result.error || 'OK', result.token);
     } catch (err) {
       console.error('[Server] Password reset request error:', err);
@@ -449,11 +462,17 @@ io.on('connection', (socket) => {
   });
 
   socket.on('identify', async (userId, cb) => {
+    const reqSession = (socket.request as any).session;
+    if (!reqSession || reqSession.userId !== userId) {
+      if (cb) cb(false);
+      return;
+    }
     const user = await getUserById(userId);
     if (user) {
       socket.data.userId = user.id;
       socket.data.username = user.username;
       onlineUsers.add(user.id);
+      userSockets.set(user.id, socket.id);
       await updateUserStatus(user.id, 'online');
       if (cb) cb(true, { ...user, passwordHash: '' });
     } else {
@@ -470,11 +489,15 @@ io.on('connection', (socket) => {
     const userId = socket.data.userId;
     if (userId) {
       onlineUsers.delete(userId);
+      userSockets.delete(userId);
       await updateUserStatus(userId, 'offline');
       // Notify friends that user is offline
       const friends = await getFriendUsers(userId);
       for (const f of friends) {
-        io.emit('friend-status-update', userId, 'offline');
+        const targetSocketId = userSockets.get(f.userId);
+        if (targetSocketId) {
+          io.to(targetSocketId).emit('friend-status-update', userId, 'offline');
+        }
       }
     }
     console.log('[Server] Client disconnected:', socket.id);
@@ -486,9 +509,11 @@ io.on('connection', (socket) => {
     if (!userId) return cb(false, 'Not authenticated.');
     const result = await sendFriendRequest(userId, targetUsername);
     if (result.success && result.request) {
-      socket.emit('friend-request-received', result.request);
-      // If target is online, notify them immediately
-      io.emit('friend-request-received', result.request);
+      // Notify target user only
+      const targetSocketId = userSockets.get(result.request.toId);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('friend-request-received', result.request);
+      }
     }
     cb(result.success, result.error);
   });
@@ -501,7 +526,11 @@ io.on('connection', (socket) => {
       const friend = await getUserById(result.friendId);
       if (friend) {
         socket.emit('friend-request-accepted', { userId: friend.id, username: friend.username, avatarUrl: friend.avatarUrl, status: friend.status });
-        io.emit('friend-request-accepted', { userId, username: socket.data.username || '', avatarUrl: '', status: 'online' as const });
+        // Notify the requester (friend) that their request was accepted
+        const requesterSocketId = userSockets.get(result.friendId);
+        if (requesterSocketId) {
+          io.to(requesterSocketId).emit('friend-request-accepted', { userId, username: socket.data.username || '', avatarUrl: '', status: 'online' as const });
+        }
       }
     }
     cb(result.success);
@@ -519,7 +548,11 @@ io.on('connection', (socket) => {
     if (!userId) return cb(false);
     await removeFriend(userId, targetUserId);
     socket.emit('friend-removed', targetUserId);
-    io.emit('friend-removed', userId);
+    // Notify the removed friend only
+    const targetSocketId = userSockets.get(targetUserId);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('friend-removed', userId);
+    }
     cb(true);
   });
 
@@ -569,7 +602,10 @@ io.on('connection', (socket) => {
       // Emit to sender
       socket.emit('dm-received', message, userId);
       // Emit to target if they're online
-      io.emit('dm-received', message, userId);
+      const targetSocketId = userSockets.get(targetUserId);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('dm-received', message, userId);
+      }
       cb(true);
     } catch {
       cb(false);
@@ -599,7 +635,10 @@ io.on('connection', (socket) => {
     if (!userId || !username) return cb(null);
     const group = await joinGroup(groupId, userId, username);
     if (group) {
-      io.emit('group-member-update', groupId, group.members);
+      group.members.forEach((m) => {
+        const sid = userSockets.get(m.userId);
+        if (sid) io.to(sid).emit('group-member-update', groupId, group.members);
+      });
     }
     cb(group ? { ...group, messages: [] } : null);
   });
@@ -610,11 +649,11 @@ io.on('connection', (socket) => {
     const success = await leaveGroup(groupId, userId);
     if (success) {
       const group = await getGroupById(groupId);
-      if (group) {
-        io.emit('group-member-update', groupId, group.members);
-      } else {
-        io.emit('group-member-update', groupId, []);
-      }
+      const members = group ? group.members : [];
+      members.forEach((m) => {
+        const sid = userSockets.get(m.userId);
+        if (sid) io.to(sid).emit('group-member-update', groupId, members);
+      });
     }
     cb(success);
   });
@@ -626,7 +665,13 @@ io.on('connection', (socket) => {
     if (!text.trim()) return cb(false);
     const message = await sendGroupMessage(groupId, userId, username, text);
     if (message) {
-      io.emit('group-message-received', groupId, message);
+      const group = await getGroupById(groupId);
+      if (group) {
+        group.members.forEach((m) => {
+          const sid = userSockets.get(m.userId);
+          if (sid) io.to(sid).emit('group-message-received', groupId, message);
+        });
+      }
     }
     cb(!!message);
   });
@@ -653,7 +698,12 @@ io.on('connection', (socket) => {
     const success = await promoteMember(groupId, targetUserId);
     if (success) {
       const updated = await getGroupById(groupId);
-      if (updated) io.emit('group-member-update', groupId, updated.members);
+      if (updated) {
+        updated.members.forEach((m) => {
+          const sid = userSockets.get(m.userId);
+          if (sid) io.to(sid).emit('group-member-update', groupId, updated.members);
+        });
+      }
     }
     cb(success);
   });
@@ -666,7 +716,12 @@ io.on('connection', (socket) => {
     const success = await demoteMod(groupId, targetUserId);
     if (success) {
       const updated = await getGroupById(groupId);
-      if (updated) io.emit('group-member-update', groupId, updated.members);
+      if (updated) {
+        updated.members.forEach((m) => {
+          const sid = userSockets.get(m.userId);
+          if (sid) io.to(sid).emit('group-member-update', groupId, updated.members);
+        });
+      }
     }
     cb(success);
   });
@@ -686,7 +741,14 @@ io.on('connection', (socket) => {
     const success = await kickFromGroup(groupId, targetUserId);
     if (success) {
       const updated = await getGroupById(groupId);
-      if (updated) io.emit('group-member-update', groupId, updated.members);
+      if (updated) {
+        updated.members.forEach((m) => {
+          const sid = userSockets.get(m.userId);
+          if (sid) io.to(sid).emit('group-member-update', groupId, updated.members);
+        });
+        const targetSid = userSockets.get(targetUserId);
+        if (targetSid) io.to(targetSid).emit('group-member-update', groupId, []);
+      }
     }
     cb(success);
   });
@@ -696,9 +758,13 @@ io.on('connection', (socket) => {
     if (!userId) return cb(false);
     const group = await getGroupById(groupId);
     if (!group || group.ownerId !== userId) return cb(false);
+    const members = group.members;
     const success = await deleteGroup(groupId);
     if (success) {
-      io.emit('group-member-update', groupId, []);
+      members.forEach((m) => {
+        const sid = userSockets.get(m.userId);
+        if (sid) io.to(sid).emit('group-member-update', groupId, []);
+      });
     }
     cb(success);
   });
@@ -719,8 +785,12 @@ io.on('connection', (socket) => {
     if (success) {
       const updated = await getGroupById(groupId);
       if (updated) {
-        io.emit('group-member-update', groupId, updated.members);
-        io.emit('group-invite-received', { ...updated, messages: [] });
+        updated.members.forEach((m) => {
+          const sid = userSockets.get(m.userId);
+          if (sid) io.to(sid).emit('group-member-update', groupId, updated.members);
+        });
+        const targetSid = userSockets.get(targetUserId);
+        if (targetSid) io.to(targetSid).emit('group-invite-received', { ...updated, messages: [] });
       }
     }
     cb(success);

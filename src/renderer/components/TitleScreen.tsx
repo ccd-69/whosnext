@@ -37,7 +37,7 @@ export default function TitleScreen() {
   const [showProfile, setShowProfile] = useState(false);
   const [profileBio, setProfileBio] = useState('');
   const [profileAvatar, setProfileAvatar] = useState('');
-  const [profileTab, setProfileTab] = useState<'overview' | 'recent' | 'inventory' | 'friends'>('overview');
+  const [profileTab, setProfileTab] = useState<'overview' | 'recent' | 'inventory' | 'friends' | 'perks'>('overview');
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [friendAddUsername, setFriendAddUsername] = useState('');
@@ -157,7 +157,11 @@ export default function TitleScreen() {
         setAuthError('Passwords do not match.');
         return;
       }
-      emit('register', authUsername, authPassword, authEmail.trim() || '', (success: boolean, message: string) => {
+      if (!authEmail.trim() || !authEmail.trim().includes('@')) {
+        setAuthError('A valid email is required.');
+        return;
+      }
+      emit('register', authUsername, authPassword, authEmail.trim(), (success: boolean, message: string) => {
         if (!success) setAuthError(message);
       });
     } else {
@@ -744,7 +748,7 @@ export default function TitleScreen() {
                             </button>
                           );
                         }
-                        if (me?.role !== 'owner' && group) {
+                        if (group && me) {
                           return (
                             <button
                               onClick={() => handleLeaveGroup(group.id)}
@@ -937,7 +941,7 @@ export default function TitleScreen() {
 
             {resetStep === 'request' && (
               <>
-                <p className="text-sm text-white/60 text-center">Enter your username and we'll generate a reset code for you.</p>
+                <p className="text-sm text-white/60 text-center">Enter your username and email to get a reset code.</p>
                 <div className="flex flex-col gap-2">
                   <label className="text-sm text-white/60">Username</label>
                   <input
@@ -949,10 +953,20 @@ export default function TitleScreen() {
                     className="bg-surface-light border border-border rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors"
                   />
                 </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/60">Email</label>
+                  <input
+                    type="email"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="bg-surface-light border border-border rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors"
+                  />
+                </div>
                 <button
                   onClick={() => {
                     playClick();
-                    emit('request-password-reset', authUsername, (success: boolean, message: string, token?: string) => {
+                    emit('request-password-reset', authUsername, authEmail, (success: boolean, message: string, token?: string) => {
                       if (success && token) {
                         setResetToken(token);
                         setAuthError('');
@@ -1006,8 +1020,8 @@ export default function TitleScreen() {
                         setAuthError('');
                         setAuthConfirmPassword('');
                         setAuthPassword('');
-                        setNotification('Password reset successful! Sign in with your new password.');
-                        setTimeout(() => setNotification(''), 5000);
+                        setAuthError('Password reset successful! Sign in with your new password.');
+                        setTimeout(() => setAuthError(''), 5000);
                         setShowAuth(true);
                         setAuthTab('login');
                       } else {
@@ -1093,7 +1107,7 @@ export default function TitleScreen() {
                   />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <label className="text-sm text-white/60">Email <span className="text-white/30">(optional)</span></label>
+                  <label className="text-sm text-white/60">Email <span className="text-red-400">(required)</span></label>
                   <input
                     type="email"
                     value={authEmail}

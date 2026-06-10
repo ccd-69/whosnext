@@ -25,6 +25,20 @@ function effectLabel(type: CardEffectType): string {
     double_points_hand: 'Double Hand',
     card_quality_down: 'Quality Down',
     first_of_month: 'First of Month',
+    light_strike: 'Light Strike',
+    heavy_blow: 'Heavy Blow',
+    cleave: 'Cleave',
+    execute: 'Execute',
+    block: 'Block',
+    shield_up: 'Shield Up',
+    evade: 'Evade',
+    draw_extra: 'Draw Extra',
+    force_discard: 'Force Discard',
+    cleanse: 'Cleanse',
+    double_damage: 'Double Damage',
+    reflect: 'Reflect',
+    second_wind: 'Second Wind',
+    bonus_vote: 'Bonus Vote',
   };
   return labels[type] || type;
 }

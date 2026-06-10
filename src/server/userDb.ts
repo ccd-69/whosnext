@@ -63,17 +63,21 @@ async function save(data: StoredUsers): Promise<void> {
   await writeFile(USERS_FILE, JSON.stringify(data, null, 2));
 }
 
-export async function registerUser(username: string, password: string, email?: string): Promise<{ success: boolean; user?: DbUser; error?: string }> {
+export async function registerUser(username: string, password: string, email: string): Promise<{ success: boolean; user?: DbUser; error?: string }> {
   const data = await load();
   const key = username.toLowerCase().trim();
   if (data.usernameIndex[key]) {
-    return { success: false, error: 'Username already taken.' };
+    return { success: false, error: 'Invalid username or password.' };
   }
   if (username.length < 3 || username.length > 20) {
-    return { success: false, error: 'Username must be 3–20 characters.' };
+    return { success: false, error: 'Invalid username or password.' };
   }
-  if (password.length < 4) {
-    return { success: false, error: 'Password must be at least 4 characters.' };
+  if (password.length < 8) {
+    return { success: false, error: 'Password must be at least 8 characters.' };
+  }
+  const emailTrimmed = email.trim().toLowerCase();
+  if (!emailTrimmed || !emailTrimmed.includes('@')) {
+    return { success: false, error: 'A valid email is required.' };
   }
   const userId = crypto.randomUUID();
   const passwordHash = await bcrypt.hash(password, 10);
@@ -81,7 +85,7 @@ export async function registerUser(username: string, password: string, email?: s
     id: userId,
     username: username.trim(),
     passwordHash,
-    email: email?.trim() || undefined,
+    email: emailTrimmed,
     role: 'user',
     balance: 0,
     unlockedThemes: [],
@@ -186,8 +190,13 @@ export async function removeEffectCardFromInventory(userId: string, cardId: stri
 export async function seedDevUserIfEmpty(): Promise<void> {
   const data = await load();
   if (Object.keys(data.users).length > 0) return;
+  const devPassword = process.env.DEV_PASSWORD;
+  if (!devPassword) {
+    console.log('[Security] DEV_PASSWORD not set — skipping dev user seed.');
+    return;
+  }
   const userId = 'dev-ccd-69';
-  const passwordHash = await bcrypt.hash('devpass', 10);
+  const passwordHash = await bcrypt.hash(devPassword, 10);
   const user: DbUser = {
     id: userId,
     username: 'ccd',
@@ -208,6 +217,7 @@ export async function seedDevUserIfEmpty(): Promise<void> {
   data.users[userId] = user;
   data.usernameIndex['ccd'] = userId;
   await save(data);
+  console.log('[Security] Dev user seeded. Set DEV_PASSWORD env var to authenticate.');
 }
 
 export async function updateProfile(userId: string, bio: string, avatarUrl: string): Promise<DbUser | null> {
@@ -239,14 +249,17 @@ export async function addRecentGame(userId: string, game: import('../shared/type
   await save(data);
 }
 
-export async function requestPasswordReset(username: string): Promise<{ success: boolean; token?: string; error?: string } > {
+export async function requestPasswordReset(username: string, email: string): Promise<{ success: boolean; token?: string; error?: string } > {
   const data = await load();
   const key = username.toLowerCase().trim();
   const userId = data.usernameIndex[key];
   if (!userId) {
-    return { success: false, error: 'User not found.' };
+    return { success: false, error: 'Invalid username or email.' };
   }
   const user = data.users[userId];
+  if (!user.email || user.email !== email.trim().toLowerCase()) {
+    return { success: false, error: 'Invalid username or email.' };
+  }
   // Generate a 6-digit numeric code
   const token = Math.floor(100000 + Math.random() * 900000).toString();
   user.resetToken = token;

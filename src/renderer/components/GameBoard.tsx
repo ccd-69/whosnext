@@ -204,6 +204,20 @@ export default function GameBoard() {
         double_points_hand: 'Double Hand',
         card_quality_down: 'Quality Down',
         first_of_month: 'First of Month',
+        light_strike: 'Light Strike',
+        heavy_blow: 'Heavy Blow',
+        cleave: 'Cleave',
+        execute: 'Execute',
+        block: 'Block',
+        shield_up: 'Shield Up',
+        evade: 'Evade',
+        draw_extra: 'Draw Extra',
+        force_discard: 'Force Discard',
+        cleanse: 'Cleanse',
+        double_damage: 'Double Damage',
+        reflect: 'Reflect',
+        second_wind: 'Second Wind',
+        bonus_vote: 'Bonus Vote',
       };
       const label = labels[effectType] || effectType;
       setNotification(`${playerName} used ${label}!`);
@@ -1066,7 +1080,7 @@ export default function GameBoard() {
               <button
                 onClick={() => {
                   playClick();
-                  emit('send-friend-request', miniProfilePlayer.username, (success: boolean, message?: string) => {
+                  emit('send-friend-request', miniProfilePlayer.username!, (success: boolean, message?: string) => {
                     if (success) {
                       setNotification(`Friend request sent to ${miniProfilePlayer.username}!`);
                     } else {

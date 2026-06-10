@@ -6,7 +6,7 @@ import type { ServerToClientEvents, ClientToServerEvents, InterServerEvents, Soc
 export async function seedTestUsers(): Promise<void> {
   for (let i = 1; i <= 8; i++) {
     const username = `testuser${i}`;
-    const result = await registerUser(username, 'testpass', undefined);
+    const result = await registerUser(username, 'testpass', `${username}@test.local`);
     if (result.success) {
       console.log('[Seed] Created', username);
     } else if (result.error?.includes('already taken')) {
