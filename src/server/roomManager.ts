@@ -1236,17 +1236,6 @@ export class RoomManager {
     // Remove bought card from shop so it can't be bought again
     room.shopCards.splice(cardIndex, 1);
 
-    // Return unsold card to deck as deprioritized
-    const deck = this.decks.get(room.id);
-    if (deck && unsoldCard) {
-      // Find original template ID
-      const original = EFFECT_CARDS.find((c) => c.text === unsoldCard.text);
-      if (original) {
-        deck.deprioritizedEffects.add(original.id);
-        deck.whiteDiscard.push({ ...unsoldCard });
-      }
-    }
-
     // Track lifetime spend
     recordSpend(player.userId, player.name, cost).catch((err) => console.error('[Leaderboard] Spend record failed:', err));
 
