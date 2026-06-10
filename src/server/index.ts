@@ -177,9 +177,10 @@ io.on('connection', (socket) => {
 
   socket.on('start-game', async () => {
     const roomId = socket.data.roomId;
+    const playerId = socket.data.playerId;
     console.log('[Server] start-game from', socket.id, 'roomId=', roomId);
-    if (!roomId) return;
-    await roomManager.startGame(roomId);
+    if (!roomId || !playerId) return;
+    await roomManager.startGame(roomId, playerId);
   });
 
   socket.on('play-card', (cardIds, effectCardId, cb) => {
@@ -211,8 +212,9 @@ io.on('connection', (socket) => {
 
   socket.on('next-round', () => {
     const roomId = socket.data.roomId;
-    if (!roomId) return;
-    roomManager.nextRound(roomId);
+    const playerId = socket.data.playerId;
+    if (!roomId || !playerId) return;
+    roomManager.nextRound(roomId, playerId);
   });
 
   socket.on('leave-room', () => {

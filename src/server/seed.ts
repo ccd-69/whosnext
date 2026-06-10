@@ -63,7 +63,7 @@ export async function simulateGames(
       roomManager.joinRoom(room.code, p.username, `sim-socket-${p.id}`, p.id, p.username);
     }
 
-    await roomManager.startGame(room.id);
+    await roomManager.startGame(room.id, host.id);
 
     // Play rounds until game ends
     let safety = 0;

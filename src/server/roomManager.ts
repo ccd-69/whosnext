@@ -169,9 +169,11 @@ export class RoomManager {
     return room;
   }
 
-  async startGame(roomId: string): Promise<void> {
+  async startGame(roomId: string, playerId: string): Promise<void> {
     const room = this.rooms.get(roomId);
     if (!room || room.players.length < 3) return;
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player?.isHost) return;
     room.phase = 'dealing';
     room.round = 1;
     room.readyPlayerIds = [];
@@ -1297,10 +1299,12 @@ export class RoomManager {
     return getLeaderboards();
   }
 
-  nextRound(roomId: string): void {
+  nextRound(roomId: string, playerId: string): void {
     const room = this.rooms.get(roomId);
     if (!room) return;
     if (room.phase !== 'round-end' && room.phase !== 'game-over') return;
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player?.isHost) return;
 
     if (room.phase === 'game-over') {
       this.resetToLobby(room);
