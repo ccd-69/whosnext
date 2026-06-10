@@ -22,7 +22,15 @@ const isProd = process.env.NODE_ENV === 'production' || process.env.RENDER === '
 
 // Security headers
 app.use(helmet({
-  contentSecurityPolicy: false, // handled separately if needed
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'https:', 'data:'],
+      connectSrc: ["'self'", 'ws:', 'wss:'],
+    },
+  },
   crossOriginEmbedderPolicy: false,
 }));
 
@@ -498,6 +506,9 @@ io.on('connection', (socket) => {
   socket.on('update-profile', async (bio, avatarUrl, cb) => {
     const userId = socket.data.userId;
     if (!userId) return cb(false);
+    if (avatarUrl && !/^https?:\/\//i.test(avatarUrl)) {
+      return cb(false);
+    }
     const updated = await updateProfile(userId, bio, avatarUrl);
     if (updated) {
       socket.emit('auth-success', updated);
