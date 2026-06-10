@@ -4,6 +4,8 @@ import { Server } from 'socket.io';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import session from 'express-session';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { RoomManager } from './roomManager.js';
 import { registerUser, loginUser, spendUserBalance, unlockUserTheme, getUserById, addEffectCardToInventory, seedDevUserIfEmpty, updateProfile, getProfileByUsername, updateUserStatus, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, blockUser, unblockUser, getFriendUsers, getPendingFriendRequests, requestPasswordReset, resetPassword } from './userDb.js';
 import { sendDM, getDMHistory } from './dmDb.js';
@@ -18,11 +20,28 @@ const httpServer = createServer(app);
 
 const isProd = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
 
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // handled separately if needed
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Rate limiting for HTTP routes
+const httpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(httpLimiter);
+
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map((o) => o.trim()).filter(Boolean);
+
 const sessionMiddleware = session({
   secret: process.env.SESSION_SECRET || 'whosnext-session-secret-change-me',
   resave: false,
   saveUninitialized: true,
-  cookie: { secure: isProd, maxAge: 24 * 60 * 60 * 1000 },
+  cookie: { secure: isProd, maxAge: 24 * 60 * 60 * 1000, sameSite: 'lax' },
 });
 app.use(sessionMiddleware);
 app.use(express.json());
@@ -34,7 +53,12 @@ const io = new Server<
   SocketData
 >(httpServer, {
   cors: {
-    origin: (origin, callback) => callback(null, origin || true),
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      if (!isProd && origin.startsWith('http://localhost:')) return callback(null, true);
+      callback(new Error('Not allowed by CORS'), false);
+    },
     credentials: true,
   },
   connectionStateRecovery: {
@@ -82,6 +106,20 @@ app.get('*', (_req, res) => {
 
 io.on('connection', (socket) => {
   console.log('[Server] Client connected:', socket.id);
+
+  // Simple in-memory rate limiter per IP per event
+  const socketRateLimits = new Map<string, number[]>();
+  function checkSocketRateLimit(event: string, maxRequests: number, windowMs: number): boolean {
+    const ip = (socket.handshake.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || socket.handshake.address;
+    const key = `${ip}:${event}`;
+    const now = Date.now();
+    const timestamps = socketRateLimits.get(key) || [];
+    const filtered = timestamps.filter((t) => now - t < windowMs);
+    if (filtered.length >= maxRequests) return false;
+    filtered.push(now);
+    socketRateLimits.set(key, filtered);
+    return true;
+  }
 
   // Handle rejoins: if socket has a session with a known player, restore
   const reqSession = (socket.request as express.Request).session as any;
@@ -194,6 +232,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('send-chat', (text) => {
+    if (!checkSocketRateLimit('send-chat', 60, 60 * 1000)) {
+      socket.emit('error', 'Rate limit exceeded. Please slow down.');
+      return;
+    }
     const roomId = socket.data.roomId;
     const playerId = socket.data.playerId;
     if (roomId && playerId) {
@@ -322,6 +364,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('register', async (username, password, email, cb) => {
+    if (!checkSocketRateLimit('register', 5, 15 * 60 * 1000)) {
+      return cb(false, 'Too many attempts. Please try again later.', undefined);
+    }
     try {
       const result = await registerUser(username, password, email || '');
       if (result.success && result.user) {
@@ -348,6 +393,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('login', async (username, password, cb) => {
+    if (!checkSocketRateLimit('login', 5, 15 * 60 * 1000)) {
+      return cb(false, 'Too many attempts. Please try again later.', undefined);
+    }
     try {
       const result = await loginUser(username, password);
       if (result.success && result.user) {
@@ -382,6 +430,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('request-password-reset', async (username, email, cb) => {
+    if (!checkSocketRateLimit('request-password-reset', 3, 15 * 60 * 1000)) {
+      return cb(false, 'Too many attempts. Please try again later.', undefined);
+    }
     try {
       const result = await requestPasswordReset(username, email);
       cb(result.success, result.error || 'OK', result.token);
@@ -594,6 +645,9 @@ io.on('connection', (socket) => {
 
   // DM handlers
   socket.on('send-dm', async (targetUserId, text, cb) => {
+    if (!checkSocketRateLimit('send-dm', 30, 60 * 1000)) {
+      return cb(false);
+    }
     const userId = socket.data.userId;
     if (!userId) return cb(false);
     if (!text.trim()) return cb(false);
@@ -659,6 +713,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('send-group-message', async (groupId, text, cb) => {
+    if (!checkSocketRateLimit('send-group-message', 30, 60 * 1000)) {
+      return cb(false);
+    }
     const userId = socket.data.userId;
     const username = socket.data.username;
     if (!userId || !username) return cb(false);
