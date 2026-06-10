@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import session from 'express-session';
 import { RoomManager } from './roomManager.js';
-import { registerUser, loginUser, spendUserBalance, unlockUserTheme, getUserById, addEffectCardToInventory, seedDevUserIfEmpty, updateProfile, getProfileByUsername, updateUserStatus, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, blockUser, unblockUser, getFriendUsers, getPendingFriendRequests } from './userDb.js';
+import { registerUser, loginUser, spendUserBalance, unlockUserTheme, getUserById, addEffectCardToInventory, seedDevUserIfEmpty, updateProfile, getProfileByUsername, updateUserStatus, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, blockUser, unblockUser, getFriendUsers, getPendingFriendRequests, requestPasswordReset, resetPassword } from './userDb.js';
 import { sendDM, getDMHistory } from './dmDb.js';
 import { createGroup, joinGroup, leaveGroup, deleteGroup, sendGroupMessage, getGroupHistory, getMyGroups, promoteMember, demoteMod, kickFromGroup, getGroupById, addUserToGroup } from './groupChatDb.js';
 import { seedTestUsers, simulateGames } from './seed.js';
@@ -362,6 +362,29 @@ io.on('connection', (socket) => {
       console.error('[Server] Login error:', err);
       socket.emit('auth-error', 'Server error during login');
       cb(false, 'Server error', undefined);
+    }
+  });
+
+  socket.on('request-password-reset', async (username, cb) => {
+    try {
+      const result = await requestPasswordReset(username);
+      if (result.success) {
+        socket.emit('notification', `Password reset code: ${result.token} — Enter this code below to set a new password.`);
+      }
+      cb(result.success, result.error || 'OK', result.token);
+    } catch (err) {
+      console.error('[Server] Password reset request error:', err);
+      cb(false, 'Server error', undefined);
+    }
+  });
+
+  socket.on('reset-password', async (username, token, newPassword, cb) => {
+    try {
+      const result = await resetPassword(username, token, newPassword);
+      cb(result.success, result.error || 'OK');
+    } catch (err) {
+      console.error('[Server] Password reset error:', err);
+      cb(false, 'Server error');
     }
   });
 

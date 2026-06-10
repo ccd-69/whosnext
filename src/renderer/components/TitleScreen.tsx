@@ -23,6 +23,9 @@ export default function TitleScreen() {
   const [authEmail, setAuthEmail] = useState('');
   const [authError, setAuthError] = useState('');
   const [guestMode, setGuestMode] = useState(false);
+  const [showReset, setShowReset] = useState(false);
+  const [resetToken, setResetToken] = useState('');
+  const [resetStep, setResetStep] = useState<'request' | 'confirm'>('request');
   const [user, setUser] = useState<User | null>(null);
   const [leaderboards, setLeaderboards] = useState<{ wins: LeaderboardEntry[]; earned: LeaderboardEntry[]; spent: LeaderboardEntry[] } | null>(null);
   const [lbTab, setLbTab] = useState<'wins' | 'earned' | 'spent'>('wins');
@@ -918,6 +921,110 @@ export default function TitleScreen() {
         </div>
       )}
 
+      {/* Password Reset Modal */}
+      {showReset && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass-card p-6 max-w-sm w-full flex flex-col gap-4 animate-bounce-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <LogIn size={20} className="text-accent" />
+                <h2 className="text-xl font-bold">Reset Password</h2>
+              </div>
+              <button onClick={() => setShowReset(false)} className="text-white/40 hover:text-white">✕</button>
+            </div>
+
+            {authError && <p className="text-red-400 text-sm text-center">{authError}</p>}
+
+            {resetStep === 'request' && (
+              <>
+                <p className="text-sm text-white/60 text-center">Enter your username and we'll generate a reset code for you.</p>
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/60">Username</label>
+                  <input
+                    type="text"
+                    value={authUsername}
+                    onChange={(e) => setAuthUsername(e.target.value)}
+                    placeholder="Enter username"
+                    maxLength={20}
+                    className="bg-surface-light border border-border rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    playClick();
+                    emit('request-password-reset', authUsername, (success: boolean, message: string, token?: string) => {
+                      if (success && token) {
+                        setResetToken(token);
+                        setAuthError('');
+                        setResetStep('confirm');
+                      } else {
+                        setAuthError(message || 'Failed to request reset.');
+                      }
+                    });
+                  }}
+                  className="btn-primary flex items-center justify-center gap-2"
+                >
+                  Get Reset Code
+                </button>
+              </>
+            )}
+
+            {resetStep === 'confirm' && (
+              <>
+                <div className="glass-card p-3 bg-accent/10 border border-accent/30 text-center">
+                  <p className="text-xs text-white/60 mb-1">Your reset code:</p>
+                  <p className="text-2xl font-bold text-accent tracking-wider">{resetToken}</p>
+                  <p className="text-[10px] text-white/40 mt-1">This code expires in 30 minutes.</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/60">Reset Code</label>
+                  <input
+                    type="text"
+                    value={authConfirmPassword}
+                    onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                    placeholder="Enter the 6-digit code"
+                    maxLength={6}
+                    className="bg-surface-light border border-border rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-white/60">New Password</label>
+                  <input
+                    type="password"
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    className="bg-surface-light border border-border rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    playClick();
+                    emit('reset-password', authUsername, authConfirmPassword, authPassword, (success: boolean, message: string) => {
+                      if (success) {
+                        setShowReset(false);
+                        setAuthError('');
+                        setAuthConfirmPassword('');
+                        setAuthPassword('');
+                        setNotification('Password reset successful! Sign in with your new password.');
+                        setTimeout(() => setNotification(''), 5000);
+                        setShowAuth(true);
+                        setAuthTab('login');
+                      } else {
+                        setAuthError(message || 'Reset failed.');
+                      }
+                    });
+                  }}
+                  className="btn-primary flex items-center justify-center gap-2"
+                >
+                  Reset Password
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Auth Modal */}
       {showAuth && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -1002,6 +1109,22 @@ export default function TitleScreen() {
               {authTab === 'login' ? <LogIn size={16} /> : <UserPlus size={16} />}
               {authTab === 'login' ? 'Sign In' : 'Create Account'}
             </button>
+
+            {authTab === 'login' && (
+              <button
+                onClick={() => {
+                  playClick();
+                  setShowAuth(false);
+                  setShowReset(true);
+                  setResetStep('request');
+                  setAuthError('');
+                  setResetToken('');
+                }}
+                className="text-sm text-accent hover:text-white transition-colors"
+              >
+                Forgot password?
+              </button>
+            )}
 
             <button
               onClick={() => { playClick(); setGuestMode(true); setShowAuth(false); }}

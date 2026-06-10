@@ -334,6 +334,8 @@ export interface ClientToServerEvents {
   'get-leaderboards': () => void;
   'register': (username: string, password: string, email: string | undefined, cb: (success: boolean, message: string, user?: User) => void) => void;
   'login': (username: string, password: string, cb: (success: boolean, message: string, user?: User) => void) => void;
+  'request-password-reset': (username: string, cb: (success: boolean, message: string, token?: string) => void) => void;
+  'reset-password': (username: string, token: string, newPassword: string, cb: (success: boolean, message: string) => void) => void;
   'buy-theme': (themeId: string, cb: (success: boolean, remainingBalance: number) => void) => void;
   'buy-effect-card': (cardId: string, cb: (success: boolean, remainingBalance: number, error?: string) => void) => void;
   'get-profile': (username: string, cb: (profile: User | null) => void) => void;

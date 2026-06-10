@@ -31,6 +31,8 @@ export interface DbUser {
   battleRoyaleXP: number;
   unlockedPerks: string[];
   createdAt: number;
+  resetToken?: string;
+  resetTokenExpiry?: number;
 }
 
 interface StoredUsers {
@@ -235,6 +237,46 @@ export async function addRecentGame(userId: string, game: import('../shared/type
   if (user.recentGames.length > 20) user.recentGames.length = 20;
   user.totalGamesPlayed += 1;
   await save(data);
+}
+
+export async function requestPasswordReset(username: string): Promise<{ success: boolean; token?: string; error?: string } > {
+  const data = await load();
+  const key = username.toLowerCase().trim();
+  const userId = data.usernameIndex[key];
+  if (!userId) {
+    return { success: false, error: 'User not found.' };
+  }
+  const user = data.users[userId];
+  // Generate a 6-digit numeric code
+  const token = Math.floor(100000 + Math.random() * 900000).toString();
+  user.resetToken = token;
+  user.resetTokenExpiry = Date.now() + 1000 * 60 * 30; // 30 minutes
+  await save(data);
+  return { success: true, token };
+}
+
+export async function resetPassword(username: string, token: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+  const data = await load();
+  const key = username.toLowerCase().trim();
+  const userId = data.usernameIndex[key];
+  if (!userId) {
+    return { success: false, error: 'User not found.' };
+  }
+  const user = data.users[userId];
+  if (user.resetToken !== token) {
+    return { success: false, error: 'Invalid reset code.' };
+  }
+  if (!user.resetTokenExpiry || Date.now() > user.resetTokenExpiry) {
+    return { success: false, error: 'Reset code has expired.' };
+  }
+  if (newPassword.length < 4) {
+    return { success: false, error: 'Password must be at least 4 characters.' };
+  }
+  user.passwordHash = await bcrypt.hash(newPassword, 10);
+  user.resetToken = undefined;
+  user.resetTokenExpiry = undefined;
+  await save(data);
+  return { success: true };
 }
 
 export async function getUserByUsername(username: string): Promise<DbUser | null> {
