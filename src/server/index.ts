@@ -34,14 +34,15 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// Rate limiting for HTTP routes
+// Rate limiting for HTTP API routes only (not static assets or Socket.io)
 const httpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
 });
-app.use(httpLimiter);
+app.use('/dev/seed', httpLimiter);
+app.use('/health', httpLimiter);
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map((o) => o.trim()).filter(Boolean);
 

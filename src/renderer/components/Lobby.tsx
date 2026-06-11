@@ -29,6 +29,8 @@ export default function Lobby() {
   const [effectInventory, setEffectInventory] = useState<string[]>([]);
   const [selectedEffectCards, setSelectedEffectCards] = useState<string[]>([]);
 
+  const [connTimeout, setConnTimeout] = useState(false);
+
   const isHost = step === 'host';
 
   const uniqueEffectCards = EFFECT_CARDS.reduce<Card[]>((acc, card) => {
@@ -37,6 +39,16 @@ export default function Lobby() {
     }
     return acc;
   }, []);
+
+  // Connection timeout: show error if socket doesn't connect within 8s
+  useEffect(() => {
+    if (connected) {
+      setConnTimeout(false);
+      return;
+    }
+    const t = setTimeout(() => setConnTimeout(true), 8000);
+    return () => clearTimeout(t);
+  }, [connected]);
 
   useEffect(() => {
     if (!connected) return;
@@ -48,13 +60,23 @@ export default function Lobby() {
     });
   }, [connected, emit]);
 
+  // Always listen for game-state (handles rejoin after refresh)
   useEffect(() => {
-    if (!connected || step !== 'host') return;
+    if (!connected) return;
     const unsubState = on('game-state', (state: GameState) => {
       setRoom(state.room);
       const me = state.room.players.find((p) => p.id === state.myPlayerId);
       if (me) {
         setSelectedEffectCards(me.selectedEffectCardIds || []);
+        // If we were rejoined by the server while on the form, restore the view
+        if (step === 'form') {
+          if (me.isHost) {
+            setStep('host');
+          } else {
+            // Non-host should not be on lobby page; go to game
+            navigate(`/game/${state.room.code}`);
+          }
+        }
       }
     });
     const unsubJoin = on('player-joined', () => {
@@ -160,9 +182,15 @@ export default function Lobby() {
   if (!connected) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
+        <div className="flex flex-col items-center gap-4 max-w-xs text-center">
           <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
           <p className="text-white/60">Connecting to game server...</p>
+          {connTimeout && (
+            <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
+              <p className="font-semibold mb-1">Connection timed out</p>
+              <p className="text-white/60">The server may be restarting or your connection is blocked. Try refreshing the page.</p>
+            </div>
+          )}
         </div>
       </div>
     );
