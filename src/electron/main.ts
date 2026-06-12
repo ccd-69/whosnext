@@ -79,7 +79,7 @@ ipcMain.handle('close-window', () => {
 });
 
 ipcMain.handle('get-server-url', () => {
-  return isDev ? 'http://localhost:3000' : 'http://localhost:3000';
+  return isDev ? 'http://localhost:3000' : 'https://whosnext-production-07fa.up.railway.app';
 });
 
 ipcMain.handle('open-external', (_event, url: string) => {

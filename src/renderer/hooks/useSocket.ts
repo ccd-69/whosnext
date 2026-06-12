@@ -24,6 +24,10 @@ async function initSocket(): Promise<AppSocket> {
           url = window.location.origin;
         }
       }
+      // Fallback: if still localhost in a non-Electron production build, use Railway
+      if (url === 'http://localhost:3000' && !window.whosnextAPI) {
+        url = 'https://whosnext-production-07fa.up.railway.app';
+      }
     }
     sharedUrl = url;
     const socket: AppSocket = io(url, {

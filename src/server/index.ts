@@ -69,7 +69,7 @@ const io = new Server<
       // Allow same-origin requests automatically (e.g. Render / Fly.io deployment)
       const originHost = new URL(origin).hostname;
       const serverHost = (httpServer as any).address?.()?.address || '';
-      if (!serverHost || originHost === serverHost || originHost === 'whosnext.onrender.com' || originHost.endsWith('.fly.dev')) {
+      if (!serverHost || originHost === serverHost || originHost === 'whosnext.onrender.com' || originHost.endsWith('.fly.dev') || originHost.endsWith('.up.railway.app')) {
         return callback(null, true);
       }
       callback(new Error('Not allowed by CORS'), false);
