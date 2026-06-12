@@ -66,10 +66,10 @@ const io = new Server<
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       if (!isProd && origin.startsWith('http://localhost:')) return callback(null, true);
-      // Allow same-origin requests automatically (e.g. Render deployment)
+      // Allow same-origin requests automatically (e.g. Render / Fly.io deployment)
       const originHost = new URL(origin).hostname;
       const serverHost = (httpServer as any).address?.()?.address || '';
-      if (!serverHost || originHost === serverHost || originHost === 'whosnext.onrender.com') {
+      if (!serverHost || originHost === serverHost || originHost === 'whosnext.onrender.com' || originHost.endsWith('.fly.dev')) {
         return callback(null, true);
       }
       callback(new Error('Not allowed by CORS'), false);
