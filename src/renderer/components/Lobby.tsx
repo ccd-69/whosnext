@@ -522,7 +522,7 @@ export default function Lobby() {
               <input
                 type="text"
                 value={roomCode}
-                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                onChange={(e) => setRoomCode(e.target.value)}
                 placeholder="ABCD12"
                 maxLength={6}
                 className="bg-surface-light border border-border rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-accent transition-colors font-mono tracking-widest text-center text-xl"
