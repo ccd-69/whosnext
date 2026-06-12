@@ -450,12 +450,12 @@ export default function TitleScreen() {
         )}
 
         {/* Game Mode Cards */}
-        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 w-full items-stretch justify-center">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 w-fit mx-auto">
           <button
             onClick={() => { playClick(); navigate('/lobby/quick-play'); }}
             onMouseEnter={() => { setHovered('quick-play'); playHover(); }}
             onMouseLeave={() => setHovered(null)}
-            className={`flex-none sm:flex-1 flex flex-col glass-card p-4 sm:p-6 text-left transition-all duration-300 hover:border-accent/50 hover:bg-surface-light/80 ${
+            className={`flex flex-col w-full glass-card p-4 sm:p-6 text-left transition-all duration-300 hover:border-accent/50 hover:bg-surface-light/80 ${
               hovered === 'quick-play' ? 'scale-[1.02] shadow-xl shadow-accent/20' : ''
             }`}
           >
@@ -485,7 +485,7 @@ export default function TitleScreen() {
             onClick={() => { playClick(); navigate('/lobby/two-votes'); }}
             onMouseEnter={() => { setHovered('two-votes'); playHover(); }}
             onMouseLeave={() => setHovered(null)}
-            className={`flex-1 flex flex-col glass-card p-6 text-left transition-all duration-300 hover:border-green-500/50 hover:bg-surface-light/80 ${
+            className={`flex flex-col w-full glass-card p-6 text-left transition-all duration-300 hover:border-green-500/50 hover:bg-surface-light/80 ${
               hovered === 'two-votes' ? 'scale-[1.02] shadow-xl shadow-green-500/20' : ''
             }`}
           >
@@ -515,7 +515,7 @@ export default function TitleScreen() {
             onClick={() => { playClick(); navigate('/lobby/whos-next'); }}
             onMouseEnter={() => { setHovered('whos-next'); playHover(); }}
             onMouseLeave={() => setHovered(null)}
-            className={`flex-1 flex flex-col glass-card p-6 text-left transition-all duration-300 hover:border-purple-500/50 hover:bg-surface-light/80 ${
+            className={`flex flex-col w-full glass-card p-6 text-left transition-all duration-300 hover:border-purple-500/50 hover:bg-surface-light/80 ${
               hovered === 'whos-next' ? 'scale-[1.02] shadow-xl shadow-purple-500/20' : ''
             }`}
           >
@@ -545,7 +545,7 @@ export default function TitleScreen() {
             onClick={() => { playClick(); navigate('/lobby/battle-royale'); }}
             onMouseEnter={() => { setHovered('battle-royale'); playHover(); }}
             onMouseLeave={() => setHovered(null)}
-            className={`flex-1 flex flex-col glass-card p-6 text-left transition-all duration-300 hover:border-red-500/50 hover:bg-surface-light/80 ${
+            className={`flex flex-col w-full glass-card p-6 text-left transition-all duration-300 hover:border-red-500/50 hover:bg-surface-light/80 ${
               hovered === 'battle-royale' ? 'scale-[1.02] shadow-xl shadow-red-500/20' : ''
             }`}
           >
