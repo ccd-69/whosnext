@@ -5,7 +5,7 @@ import { ArrowLeft, Copy, Users, Play, DoorOpen, Settings, Skull, Laugh, Flame, 
 import { playClick, playChime, playJoin } from '../audio/sound.js';
 import type { Room, GameMode, Player, GameState, CardPack, Card } from '../../shared/types.js';
 import { EFFECT_CARDS } from '../../shared/deck.js';
-import { addActiveGame } from '../utils/activeGames.js';
+import { addActiveGame, getActiveGames } from '../utils/activeGames.js';
 
 export default function Lobby() {
   const { mode } = useParams<{ mode: GameMode }>();
@@ -88,6 +88,22 @@ export default function Lobby() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, step, on]);
+
+  // Client-driven rejoin: if user returns to lobby while still in an active game
+  useEffect(() => {
+    if (!connected || step !== 'form') return;
+    const games = getActiveGames();
+    // Try to rejoin any active game for this socket (mode-agnostic since activeGames has roomCode)
+    for (const g of games) {
+      emit('rejoin', g.roomId, g.sessionId, (room) => {
+        if (room) {
+          // game-state listener will handle host vs non-host navigation
+          console.log('[Lobby] Rejoined room', room.code);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, step]);
 
   function handleCreateRoom() {
     if (!playerName.trim() || !roomName.trim()) return;

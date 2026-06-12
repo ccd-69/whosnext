@@ -308,6 +308,7 @@ export interface ClientToServerEvents {
     cb: (room: Room) => void
   ) => void;
   'join-room': (code: string, playerName: string, cb: (room: Room | null) => void) => void;
+  'rejoin': (roomId: string, sessionId: string, cb: (room: Room | null) => void) => void;
   'start-game': () => void;
   'play-card': (cards: CardPlay[], effectCardId: string | null, cb: (success: boolean) => void) => void;
   'judge-pick': (submissionId: string, cb: (success: boolean) => void) => void;

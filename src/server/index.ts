@@ -190,6 +190,28 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('rejoin', (roomId, sessionId, cb) => {
+    console.log('[Server] rejoin from', socket.id, 'roomId=', roomId, 'sessionId=', sessionId);
+    const result = roomManager.rejoinPlayer(roomId, sessionId, socket.id);
+    if (result) {
+      socket.join(result.room.id);
+      socket.data.playerId = result.player.id;
+      socket.data.roomId = result.room.id;
+      if (reqSession) {
+        reqSession.roomId = result.room.id;
+        reqSession.sessionId = result.player.sessionId;
+        reqSession.save?.();
+      }
+      socket.emit('chat-history', roomManager.getChatHistory(result.room.id));
+      socket.emit('custom-emojis', roomManager.getCustomEmojis(result.room.id));
+      console.log('[Server] Rejoined player', result.player.name, 'to room', result.room.code);
+      cb(result.room);
+    } else {
+      console.log('[Server] rejoin failed: room or player not found');
+      cb(null);
+    }
+  });
+
   socket.on('start-game', async () => {
     const roomId = socket.data.roomId;
     const playerId = socket.data.playerId;

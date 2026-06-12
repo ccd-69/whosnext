@@ -6,7 +6,7 @@ import ChatPanel from './ChatPanel.js';
 import type { GameState, GamePhase, Player, Card as CardType, CardPlay, CardEffectType } from '../../shared/types.js';
 import { ArrowLeft, Trophy, Clock, User, CheckCircle, Crown, Settings, PenLine, Zap, Eye, Ban, Shuffle, Plus, Minus, RefreshCw, Flag, UserPlus, Skull, Shield } from 'lucide-react';
 import { playClick, playSubmit, playChime, playWin, playError, playJoin } from '../audio/sound.js';
-import { removeActiveGame } from '../utils/activeGames.js';
+import { getActiveGames, removeActiveGame } from '../utils/activeGames.js';
 import { EFFECT_CARDS as ALL_EFFECT_CARDS } from '../../shared/deck.js';
 
 export default function GameBoard() {
@@ -66,6 +66,9 @@ export default function GameBoard() {
 
   // Leaderboard ranks for scoreboard
   const [globalRanks, setGlobalRanks] = useState<Record<string, { wins: number; rank: number }>>({});
+
+  // Rejoin / loading timeout
+  const [loadError, setLoadError] = useState(false);
 
   const uniqueEffectCards = ALL_EFFECT_CARDS.reduce<CardType[]>((acc, card) => {
     if (card.effect && !acc.find((c) => c.effect?.type === card.effect?.type)) {
@@ -337,6 +340,31 @@ export default function GameBoard() {
     };
   }, [connected, on, gameState, emit]);
 
+  // Rejoin when socket connects or tab becomes visible
+  useEffect(() => {
+    if (!connected || !roomCode) return;
+    tryRejoin();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && connected && !gameState) {
+        tryRejoin();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, roomCode, gameState]);
+
+  // Timeout: if still loading after 8s, show reconnect UI
+  useEffect(() => {
+    if (gameState) {
+      setLoadError(false);
+      return;
+    }
+    const t = setTimeout(() => setLoadError(true), 8000);
+    return () => clearTimeout(t);
+  }, [gameState, roomCode]);
+
   // Vote kick countdown timer
   useEffect(() => {
     if (!voteKickOpen || voteKickTimer <= 0) return;
@@ -429,6 +457,20 @@ export default function GameBoard() {
     emit('next-round');
     setFinalScores(null);
     setWinnerId(null);
+  }
+
+  function tryRejoin() {
+    if (!roomCode) return;
+    const games = getActiveGames();
+    const match = games.find((g) => g.roomCode === roomCode);
+    if (match) {
+      setLoadError(false);
+      emit('rejoin', match.roomId, match.sessionId, (room) => {
+        if (!room) setLoadError(true);
+      });
+    } else {
+      setLoadError(true);
+    }
   }
 
   function handleLeave() {
@@ -617,9 +659,19 @@ export default function GameBoard() {
   if (!gameState || !room) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-          <p className="text-white/60">Loading game...</p>
+        <div className="flex flex-col items-center gap-4 max-w-xs text-center px-4">
+          {!loadError ? (
+            <>
+              <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+              <p className="text-white/60">Loading game...</p>
+            </>
+          ) : (
+            <>
+              <p className="text-white/60">Could not reconnect to game.</p>
+              <button onClick={tryRejoin} className="btn-primary">Reconnect</button>
+              <button onClick={handleLeave} className="btn-secondary">Leave Game</button>
+            </>
+          )}
         </div>
       </div>
     );

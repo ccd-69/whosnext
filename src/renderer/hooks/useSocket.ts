@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import type { ServerToClientEvents, ClientToServerEvents } from '../../shared/types.js';
+import { getActiveGames } from '../utils/activeGames.js';
 
 type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -57,6 +58,22 @@ export function useSocket() {
         const storedUserId = localStorage.getItem('whosnext_user_id');
         if (storedUserId) {
           socket.emit('identify', storedUserId);
+        }
+        // Auto-rejoin if we're on a game page and have an active game stored
+        if (typeof window !== 'undefined') {
+          const path = window.location.pathname;
+          if (path.startsWith('/game/')) {
+            const code = path.split('/')[2];
+            const games = getActiveGames();
+            const match = games.find((g) => g.roomCode === code);
+            if (match) {
+              socket.emit('rejoin', match.roomId, match.sessionId, (room) => {
+                if (room) {
+                  console.log('[Socket] Auto-rejoined room', room.code);
+                }
+              });
+            }
+          }
         }
       };
       const onDisconnect = () => setConnected(false);
