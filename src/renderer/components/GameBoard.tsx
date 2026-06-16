@@ -376,7 +376,7 @@ export default function GameBoard() {
         }
         return t - 1;
       });
-    }, 1000);
+    }, 2250);
     return () => clearInterval(interval);
   }, [voteKickOpen, voteKickTimer]);
 
@@ -391,7 +391,7 @@ export default function GameBoard() {
         }
         return t - 1;
       });
-    }, 1000);
+    }, 2250);
     return () => clearInterval(interval);
   }, [voteEndOpen, voteEndTimer]);
 
