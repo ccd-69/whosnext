@@ -190,7 +190,7 @@
 
   .card-white {
     @apply bg-white text-black p-4 rounded-xl shadow-lg
-           font-bold text-sm leading-tight
+           font-bold text-sm leading-tight border border-gray-300
            transition-all duration-200 hover:-translate-y-1 hover:shadow-xl;
   }
 

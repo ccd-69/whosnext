@@ -4,7 +4,7 @@ import { useSocket } from '../hooks/useSocket.js';
 import Card from './Card.js';
 import ChatPanel from './ChatPanel.js';
 import type { GameState, GamePhase, Player, Card as CardType, CardPlay, CardEffectType } from '../../shared/types.js';
-import { ArrowLeft, Trophy, Clock, User, CheckCircle, Crown, Settings, PenLine, Zap, Eye, Ban, Shuffle, Plus, Minus, RefreshCw, Flag, UserPlus, Skull, Shield } from 'lucide-react';
+import { ArrowLeft, Trophy, Clock, User, CheckCircle, Crown, Settings, PenLine, Zap, Eye, Ban, Shuffle, Plus, Minus, RefreshCw, Flag, UserPlus, Skull, Shield, Menu } from 'lucide-react';
 import { playClick, playSubmit, playChime, playWin, playError, playJoin } from '../audio/sound.js';
 import { getActiveGames, removeActiveGame } from '../utils/activeGames.js';
 import { EFFECT_CARDS as ALL_EFFECT_CARDS } from '../../shared/deck.js';
@@ -39,6 +39,9 @@ export default function GameBoard() {
   const [voteEndOpen, setVoteEndOpen] = useState(false);
   const [voteEndInitiatorName, setVoteEndInitiatorName] = useState('');
   const [voteEndTimer, setVoteEndTimer] = useState(30);
+
+  // Mobile sidebar toggle
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Intermission / Shop
   const [roundSummary, setRoundSummary] = useState<import('../../shared/types.js').RoundSummary | null>(null);
@@ -534,8 +537,8 @@ export default function GameBoard() {
 
   const sortedPlayers = room ? [...room.players].sort((a, b) => b.score - a.score) : [];
 
-  const scoreboardPanel = room && (
-    <div className="flex flex-col gap-3 shrink-0 w-full md:w-52 h-auto md:h-full overflow-y-auto py-2">
+  const renderScoreboardPanel = (forceShow?: boolean) => room && (
+    <div className={`${forceShow ? 'flex' : 'hidden md:flex'} flex-col gap-3 shrink-0 ${forceShow ? 'w-full' : 'md:w-52'} h-auto md:h-full overflow-y-auto py-2`}>
       {/* Game Info */}
       <div className="glass-card p-3 flex flex-col gap-2">
         <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Game Info</div>
@@ -865,6 +868,13 @@ export default function GameBoard() {
         </button>
 
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => { setSidebarOpen(!sidebarOpen); playClick(); }}
+            className="md:hidden flex items-center text-white/60 hover:text-white transition-colors"
+            title="Game Info"
+          >
+            <Menu size={20} />
+          </button>
           <div className="flex items-center gap-2 text-white/60">
             <Clock size={16} />
             <span className="text-sm">Round {room.round} / {room.maxRounds}</span>
@@ -912,9 +922,20 @@ export default function GameBoard() {
         </div>
       </div>
 
+      {/* Mobile Game Info Sidebar */}
+      {sidebarOpen && room && (
+        <div className="fixed inset-y-0 right-0 z-50 w-72 bg-surface/95 backdrop-blur-md border-l border-border shadow-2xl flex flex-col p-4 pt-20 overflow-y-auto md:hidden">
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="absolute top-20 right-4 text-white/40 hover:text-white"
+          >✕</button>
+          {renderScoreboardPanel(true)}
+        </div>
+      )}
+
       {/* Host Settings Panel */}
       {hostSettingsOpen && myPlayer?.isHost && room && (
-        <div className="absolute top-14 right-4 z-40 glass-card p-4 w-64 flex flex-col gap-3 animate-fade-in max-h-[80vh] overflow-y-auto">
+        <div className="absolute top-14 right-2 md:right-4 z-40 glass-card p-4 w-[calc(100%-1rem)] md:w-64 max-w-sm flex flex-col gap-3 animate-fade-in max-h-[80vh] overflow-y-auto">
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold text-white/80">Host Settings</span>
             <button onClick={() => setHostSettingsOpen(false)} className="text-white/40 hover:text-white">✕</button>
@@ -1473,7 +1494,7 @@ export default function GameBoard() {
             </div>
             )}
 
-            {scoreboardPanel}
+            {renderScoreboardPanel()}
           </div>
         )}
 
@@ -1634,7 +1655,7 @@ export default function GameBoard() {
                 </div>
               )}
             </div>
-            {scoreboardPanel}
+            {renderScoreboardPanel()}
           </div>
         )}
 
