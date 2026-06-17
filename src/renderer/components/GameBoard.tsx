@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../hooks/useSocket.js';
 import Card from './Card.js';
@@ -60,6 +60,10 @@ export default function GameBoard() {
   // Mini Profile
   const [miniProfilePlayer, setMiniProfilePlayer] = useState<Player | null>(null);
 
+  // Ref to track current gameState inside listeners without causing re-subscriptions
+  const gameStateRef = useRef<GameState | null>(null);
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+
   // Effect card selection (lobby only)
   const [effectInventory, setEffectInventory] = useState<string[]>([]);
   const [selectedEffectCards, setSelectedEffectCards] = useState<string[]>([]);
@@ -91,7 +95,7 @@ export default function GameBoard() {
     if (!connected) return;
 
     // If we navigated here after the game started, request current state
-    if (!gameState) {
+    if (!gameStateRef.current) {
       emit('request-state');
     }
 
@@ -241,7 +245,7 @@ export default function GameBoard() {
     });
 
     const unsubVoteKickStarted = on('vote-kick-started', (targetId: string, targetName: string, initiatorName: string) => {
-      if (targetId === gameState?.myPlayerId) return; // target doesn't vote
+      if (targetId === gameStateRef.current?.myPlayerId) return; // target doesn't vote
       setVoteKickTargetId(targetId);
       setVoteKickTargetName(targetName);
       setVoteKickInitiatorName(initiatorName);
@@ -338,7 +342,7 @@ export default function GameBoard() {
       unsubVoteCast();
       unsubVotePhaseEnded();
     };
-  }, [connected, on, gameState, emit]);
+  }, [connected, on, emit]);
 
   // Rejoin when socket connects or tab becomes visible
   useEffect(() => {
@@ -346,14 +350,14 @@ export default function GameBoard() {
     tryRejoin();
 
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && connected && !gameState) {
+      if (document.visibilityState === 'visible' && connected && !gameStateRef.current) {
         tryRejoin();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, roomCode, gameState]);
+  }, [connected, roomCode]);
 
   // Timeout: if still loading after 8s, show reconnect UI
   useEffect(() => {
