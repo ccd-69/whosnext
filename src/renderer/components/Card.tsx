@@ -55,10 +55,10 @@ export default function Card({
   const isEffect = !!card.effect;
 
   const sizeClasses = {
-    sm: 'w-40 h-28 text-xs p-3',
-    compact: 'w-40 h-52 text-xs p-3',
-    md: 'w-52 h-72 text-sm p-4',
-    lg: 'w-64 h-96 text-base p-6',
+    sm: 'w-28 h-24 text-[10px] p-2 md:w-40 md:h-28 md:text-xs md:p-3',
+    compact: 'w-full max-w-[11rem] h-48 text-sm p-3 md:w-40 md:h-52 md:text-xs md:p-3',
+    md: 'w-full max-w-[13rem] h-60 text-base p-4 md:w-52 md:h-72 md:text-sm md:p-4',
+    lg: 'w-full max-w-[16rem] h-80 text-lg p-5 md:w-64 md:h-96 md:text-base md:p-6',
   };
 
   return (

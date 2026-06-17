@@ -699,8 +699,8 @@ export default function GameBoard() {
   // Returned to lobby (not enough players, etc.)
   if (phase === 'lobby') {
     return (
-      <div className="flex h-full flex-col items-center justify-center px-4 overflow-auto py-4">
-        <div className="glass-card p-8 max-w-md w-full flex flex-col gap-6 animate-bounce-in">
+      <div className="flex h-full flex-col items-center justify-center px-2 md:px-4 overflow-auto py-4">
+        <div className="glass-card p-4 md:p-8 max-w-md w-full flex flex-col gap-6 animate-bounce-in">
           <div className="text-center">
             <h2 className="text-3xl font-black mb-2">Back to Lobby</h2>
             <p className="text-white/60">The game returned to the lobby. Waiting for more players to join.</p>
@@ -771,8 +771,8 @@ export default function GameBoard() {
       : [...room.players].sort((a, b) => b.score - a.score);
 
     return (
-      <div className="flex h-full flex-col items-center justify-start px-4 overflow-auto py-6">
-        <div className="glass-card p-8 max-w-lg w-full flex flex-col gap-6 animate-bounce-in max-h-[90vh] overflow-y-auto">
+      <div className="flex h-full flex-col items-center justify-start px-2 md:px-4 overflow-auto py-4 md:py-6">
+        <div className="glass-card p-4 md:p-8 max-w-lg w-full flex flex-col gap-6 animate-bounce-in max-h-[90vh] overflow-y-auto">
           <div className="text-center">
             <Trophy size={64} className="text-accent mx-auto mb-4" />
             <h2 className="text-4xl font-black mb-2">Game Over!</h2>
@@ -858,16 +858,16 @@ export default function GameBoard() {
   return (
     <div className="flex h-full flex-col">
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
+      <div className="flex items-center justify-between px-3 md:px-6 py-2 md:py-3 border-b border-border shrink-0">
         <button
           onClick={handleLeave}
-          className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+          className="flex items-center gap-1 md:gap-2 text-white/60 hover:text-white transition-colors"
         >
           <ArrowLeft size={18} />
-          Leave
+          <span className="hidden md:inline">Leave</span>
         </button>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           <button
             onClick={() => { setSidebarOpen(!sidebarOpen); playClick(); }}
             className="md:hidden flex items-center text-white/60 hover:text-white transition-colors"
@@ -875,11 +875,11 @@ export default function GameBoard() {
           >
             <Menu size={20} />
           </button>
-          <div className="flex items-center gap-2 text-white/60">
-            <Clock size={16} />
-            <span className="text-sm">Round {room.round} / {room.maxRounds}</span>
+          <div className="flex items-center gap-1.5 md:gap-2 text-white/60">
+            <Clock size={16} className="hidden md:inline" />
+            <span className="text-xs md:text-sm whitespace-nowrap">Round {room.round} / {room.maxRounds}</span>
           </div>
-          <div className="flex items-center gap-2 flex-wrap max-w-[50vw] md:max-w-none overflow-x-auto">
+          <div className="hidden md:flex items-center gap-2 flex-wrap max-w-[50vw] md:max-w-none overflow-x-auto">
             {room.players.map((p: Player) => {
               const isEliminated = room.mode === 'battle-royale' && p.health <= 0;
               return (
@@ -903,7 +903,7 @@ export default function GameBoard() {
           </div>
           <button
             onClick={() => { emit('start-vote-end'); playClick(); }}
-            className="flex items-center gap-1.5 text-xs font-semibold text-white/60 hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10"
+            className="hidden md:flex items-center gap-1.5 text-xs font-semibold text-white/60 hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10"
             title="Vote to End Game"
           >
             <Ban size={14} />
@@ -912,7 +912,7 @@ export default function GameBoard() {
           {myPlayer?.isHost && (
             <button
               onClick={() => { setHostSettingsOpen(!hostSettingsOpen); playClick(); }}
-              className="flex items-center gap-1.5 text-xs font-semibold text-white/60 hover:text-accent transition-colors px-2 py-1 rounded-lg hover:bg-accent/10"
+              className="hidden md:flex items-center gap-1.5 text-xs font-semibold text-white/60 hover:text-accent transition-colors px-2 py-1 rounded-lg hover:bg-accent/10"
               title="Host Settings"
             >
               <Settings size={14} />
@@ -924,18 +924,67 @@ export default function GameBoard() {
 
       {/* Mobile Game Info Sidebar */}
       {sidebarOpen && room && (
-        <div className="fixed inset-y-0 right-0 z-50 w-72 bg-surface/95 backdrop-blur-md border-l border-border shadow-2xl flex flex-col p-4 pt-20 overflow-y-auto md:hidden">
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="absolute top-20 right-4 text-white/40 hover:text-white"
-          >✕</button>
+        <div className="fixed inset-y-0 right-0 z-50 w-80 bg-surface/95 backdrop-blur-md border-l border-border shadow-2xl flex flex-col p-4 pt-14 overflow-y-auto md:hidden">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm font-bold text-white/80">Game Info</span>
+            <button onClick={() => setSidebarOpen(false)} className="text-white/40 hover:text-white">✕</button>
+          </div>
+
+          {/* Players */}
+          <div className="flex flex-col gap-2 mb-4">
+            <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Players</div>
+            <div className="flex flex-col gap-1.5">
+              {room.players.map((p: Player) => {
+                const isEliminated = room.mode === 'battle-royale' && p.health <= 0;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => { setMiniProfilePlayer(p); playClick(); }}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-left ${
+                      isEliminated
+                        ? 'bg-surface-light/40 text-white/20'
+                        : p.id === room.judgeId
+                        ? 'bg-accent/20 text-accent'
+                        : 'bg-surface-light text-white/60'
+                    }`}
+                  >
+                    <User size={12} />
+                    <span className="flex-1 truncate">{p.name}</span>
+                    <span className="opacity-60">({p.score})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col gap-2 mb-4">
+            <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Actions</div>
+            <button
+              onClick={() => { emit('start-vote-end'); setSidebarOpen(false); playClick(); }}
+              className="flex items-center gap-2 text-xs font-semibold text-white/60 hover:text-red-400 transition-colors px-3 py-2 rounded-lg bg-red-500/10"
+            >
+              <Ban size={14} />
+              Vote to End Game
+            </button>
+            {myPlayer?.isHost && (
+              <button
+                onClick={() => { setHostSettingsOpen(true); setSidebarOpen(false); playClick(); }}
+                className="flex items-center gap-2 text-xs font-semibold text-white/60 hover:text-accent transition-colors px-3 py-2 rounded-lg bg-accent/10"
+              >
+                <Settings size={14} />
+                Host Settings
+              </button>
+            )}
+          </div>
+
           {renderScoreboardPanel(true)}
         </div>
       )}
 
       {/* Host Settings Panel */}
       {hostSettingsOpen && myPlayer?.isHost && room && (
-        <div className="absolute top-14 right-2 md:right-4 z-40 glass-card p-4 w-[calc(100%-1rem)] md:w-64 max-w-sm flex flex-col gap-3 animate-fade-in max-h-[80vh] overflow-y-auto">
+        <div className="absolute top-12 md:top-14 right-2 md:right-4 z-40 glass-card p-4 w-[calc(100%-1rem)] md:w-64 max-w-sm flex flex-col gap-3 animate-fade-in max-h-[80vh] overflow-y-auto">
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold text-white/80">Host Settings</span>
             <button onClick={() => setHostSettingsOpen(false)} className="text-white/40 hover:text-white">✕</button>
@@ -1318,21 +1367,21 @@ export default function GameBoard() {
 
       {/* Main Game Area + Chat */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        <div className="flex-1 flex flex-col items-center justify-center gap-8 px-4 py-6 overflow-auto min-w-0">
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 md:gap-8 px-2 md:px-4 py-3 md:py-6 overflow-auto min-w-0">
         {/* Playing phase — horizontal layout: black card left, hand center, scoreboard right */}
         {phase === 'playing' && !isJudge && blackCard && (
-          <div className="flex flex-col md:flex-row items-start justify-center gap-4 w-full min-h-0 px-4">
+          <div className="flex flex-col md:flex-row items-start justify-center gap-2 md:gap-4 w-full min-h-0 px-2 md:px-4">
             {/* Black Card Column */}
             <div className="flex flex-col items-center gap-2 shrink-0 py-2">
               <div className="text-white/40 text-xs font-bold uppercase tracking-wider">Question Card</div>
               <Card card={blackCard} size="md" />
             </div>
 
-            {/* Effect Cards Column */}
+            {/* Effect Cards Row (mobile) / Column (desktop) */}
             {effectHand.length > 0 && !isJudge && (
-              <div className="flex flex-col items-center gap-2 shrink-0 py-2">
-                <div className="text-yellow-400 text-xs font-bold uppercase tracking-wider">Effect Cards</div>
-                <div className="flex flex-col gap-2">
+              <div className="flex flex-col md:flex-row md:items-center gap-2 shrink-0 py-2 w-full md:w-auto">
+                <div className="text-yellow-400 text-xs font-bold uppercase tracking-wider shrink-0">Effect Cards</div>
+                <div className="flex flex-row gap-2 overflow-x-auto max-w-full pb-1">
                   {effectHand.map((card: CardType) => {
                     const isSelected = selectedEffectCardId === card.id;
                     return (
@@ -1500,7 +1549,7 @@ export default function GameBoard() {
 
         {/* Judge waiting + Judging phases — row layout with scoreboard */}
         {!(phase === 'playing' && !isJudge) && (phase === 'playing' || phase === 'judging' || phase === 'voting') && (
-          <div className="flex flex-col md:flex-row items-start justify-center gap-4 w-full min-h-0 px-4">
+          <div className="flex flex-col md:flex-row items-start justify-center gap-2 md:gap-4 w-full min-h-0 px-2 md:px-4">
             <div className="flex flex-col items-center justify-center gap-8 flex-1 min-w-0 overflow-y-auto py-6">
               {/* Black Card */}
               {blackCard && (
@@ -1535,7 +1584,7 @@ export default function GameBoard() {
                           }}
                           className={`flex flex-col items-center gap-2 group ${alreadyVoted ? 'opacity-70 cursor-default' : 'cursor-pointer hover:scale-105 transition-transform'}`}
                         >
-                          <div className="flex gap-2 items-center">
+                          <div className="flex flex-wrap gap-2 items-center justify-center">
                             {sub.cards.map((c) => (
                               <Card key={c.id} card={c} size="md" />
                             ))}
@@ -1599,7 +1648,7 @@ export default function GameBoard() {
                           }}
                           className={`flex flex-col items-center gap-2 group ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                         >
-                          <div className="flex gap-2 items-center">
+                          <div className="flex flex-wrap gap-2 items-center justify-center">
                             {sub.cards.map((c) => (
                               <Card key={c.id} card={c} size="md" />
                             ))}
@@ -1661,7 +1710,7 @@ export default function GameBoard() {
 
         {/* Reveal Phase */}
         {phase === 'reveal' && (
-          <div className="flex flex-col items-center gap-6 animate-bounce-in w-full max-w-3xl mx-auto">
+          <div className="flex flex-col items-center gap-4 md:gap-6 animate-bounce-in w-full max-w-3xl mx-auto px-2">
             <div className="text-center">
               <Trophy size={48} className="text-accent mx-auto mb-2" />
               <p className="text-2xl font-bold">
@@ -1670,7 +1719,7 @@ export default function GameBoard() {
             </div>
             <div className="flex flex-col items-center gap-2">
               <p className="text-white/40 text-sm font-bold uppercase tracking-wider">Winning Answer</p>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-wrap gap-2 items-center justify-center">
                 {winningCards.map((c: CardType) => (
                   <Card key={c.id} card={c} size="lg" />
                 ))}
@@ -1684,7 +1733,7 @@ export default function GameBoard() {
                     const player = room.players.find((p: Player) => p.id === sub.playerId);
                     return (
                       <div key={sub.submissionId} className="flex flex-col items-center gap-2 opacity-60">
-                        <div className="flex gap-2 items-center">
+                        <div className="flex flex-wrap gap-2 items-center justify-center">
                           {sub.cards.map((c) => (
                             <Card key={c.id} card={c} size="sm" />
                           ))}
@@ -1707,7 +1756,7 @@ export default function GameBoard() {
 
         {/* Round End / Intermission */}
         {phase === 'round-end' && (
-          <div className="flex flex-col items-center gap-6 animate-bounce-in w-full max-w-3xl mx-auto">
+          <div className="flex flex-col items-center gap-4 md:gap-6 animate-bounce-in w-full max-w-3xl mx-auto px-2">
             {/* Winner display */}
             <div className="text-center">
               <Trophy size={48} className="text-accent mx-auto mb-2" />
@@ -1729,7 +1778,7 @@ export default function GameBoard() {
             {finalScores && (
               <div className="flex flex-col gap-2 w-full max-w-md">
                 <div className="text-xs text-white/40 font-bold uppercase tracking-wider">Scoreboard</div>
-                <div className="grid grid-cols-[2.5rem_1fr_3.5rem_4.5rem] gap-2 px-4 py-1 text-xs font-bold uppercase tracking-wider text-white/40 border-b border-border items-center">
+                <div className="grid grid-cols-[1.5rem_1fr_2.5rem_3.5rem] md:grid-cols-[2.5rem_1fr_3.5rem_4.5rem] gap-2 px-4 py-1 text-xs font-bold uppercase tracking-wider text-white/40 border-b border-border items-center">
                   <span>#</span>
                   <span>Player</span>
                   <span className="text-right">Wins</span>
@@ -1741,7 +1790,7 @@ export default function GameBoard() {
                   .map((p, idx) => {
                     const inGameRank = idx + 1;
                     return (
-                      <div key={p.id} className={`grid grid-cols-[2.5rem_1fr_3.5rem_4.5rem] gap-2 px-4 py-2 rounded-lg items-center ${
+                      <div key={p.id} className={`grid grid-cols-[1.5rem_1fr_2.5rem_3.5rem] md:grid-cols-[2.5rem_1fr_3.5rem_4.5rem] gap-2 px-4 py-2 rounded-lg items-center ${
                         p.id === gameState?.myPlayerId ? 'bg-accent/10 ring-1 ring-accent/30' : 'bg-surface-light'
                       }`}>
                         <span className={`font-bold text-xs ${inGameRank <= 3 ? 'text-accent' : 'text-white/40'}`}>
