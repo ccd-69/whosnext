@@ -9,6 +9,7 @@ interface CardProps {
   selected?: boolean;
   size?: 'sm' | 'compact' | 'md' | 'lg';
   revealed?: boolean;
+  className?: string;
 }
 
 function effectLabel(type: CardEffectType): string {
@@ -50,6 +51,7 @@ export default function Card({
   selected = false,
   size = 'md',
   revealed = true,
+  className = '',
 }: CardProps) {
   const isBlack = card.type === 'black';
   const isEffect = !!card.effect;
@@ -75,6 +77,7 @@ export default function Card({
         ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         ${selected ? 'ring-2 ring-accent -translate-y-2 shadow-xl' : ''}
         ${!revealed ? 'bg-surface-light' : ''}
+        ${className}
       `}
     >
       {revealed ? (

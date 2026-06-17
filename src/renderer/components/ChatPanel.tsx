@@ -150,11 +150,12 @@ export default function ChatPanel({ myPlayerId, myPlayerName, collapsed: initial
   }
 
   return (
-    <div className={`flex flex-col transition-all duration-300 ${collapsed ? 'w-12' : 'w-72'} h-full shrink-0`}>
+    <>
+    <div className={`flex flex-col transition-all duration-300 ${collapsed ? 'w-0 md:w-12' : 'w-full md:w-72 fixed inset-y-0 right-0 z-40 md:static md:z-auto'} h-full shrink-0`}>
       {collapsed ? (
         <button
           onClick={() => { setCollapsed(false); playClick(); }}
-          className="flex items-center justify-center w-12 h-12 rounded-xl glass-card hover:bg-surface-light/50 transition-colors"
+          className="hidden md:flex items-center justify-center w-12 h-12 rounded-xl glass-card hover:bg-surface-light/50 transition-colors"
           title="Open Chat"
         >
           <MessageSquare size={20} className="text-white/60" />
@@ -304,5 +305,20 @@ export default function ChatPanel({ myPlayerId, myPlayerName, collapsed: initial
         </div>
       )}
     </div>
+
+    {/* Mobile floating chat button */}
+    {collapsed && (
+      <button
+        onClick={() => { setCollapsed(false); playClick(); }}
+        className="fixed bottom-4 right-4 z-50 md:hidden w-12 h-12 rounded-full glass-card hover:bg-surface-light/50 transition-colors flex items-center justify-center shadow-lg"
+        title="Open Chat"
+      >
+        <MessageSquare size={20} className="text-white/60" />
+        {messages.length > 0 && (
+          <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-accent rounded-full border-2 border-surface" />
+        )}
+      </button>
+    )}
+  </>
   );
 }
