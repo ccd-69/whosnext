@@ -151,7 +151,7 @@ export default function ChatPanel({ myPlayerId, myPlayerName, collapsed: initial
 
   return (
     <>
-    <div className={`flex flex-col transition-all duration-300 ${collapsed ? 'w-0 md:w-12' : 'w-full md:w-72 fixed inset-y-0 right-0 z-40 md:static md:z-auto'} h-full shrink-0`}>
+    <div className={`flex flex-col transition-all duration-300 ${collapsed ? 'w-0 md:w-12' : 'w-80 md:w-72 fixed inset-y-0 right-0 z-40 md:static md:z-auto'} h-full shrink-0`}>
       {collapsed ? (
         <button
           onClick={() => { setCollapsed(false); playClick(); }}

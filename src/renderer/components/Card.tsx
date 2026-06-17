@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Card as CardType, CardEffectType } from '../../shared/types.js';
 import { PenLine } from 'lucide-react';
 
@@ -55,12 +55,83 @@ export default function Card({
 }: CardProps) {
   const isBlack = card.type === 'black';
   const isEffect = !!card.effect;
+  const [isMobile, setIsMobile] = useState(false);
 
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // Mobile text-based rendering — compact, legible, no fixed dimensions
+  if (isMobile) {
+    if (!revealed) {
+      return (
+        <button
+          onClick={onClick}
+          disabled={disabled}
+          className={`
+            w-full p-4 rounded-xl bg-surface-light border border-border
+            flex items-center justify-center
+            ${disabled ? 'opacity-50 cursor-not-allowed' : onClick ? 'cursor-pointer active:scale-95' : ''}
+            ${selected ? 'ring-2 ring-accent shadow-lg' : ''}
+            transition-all duration-150
+            ${className}
+          `}
+        >
+          <span className="text-accent font-bold text-lg">?</span>
+        </button>
+      );
+    }
+
+    const baseMobile = `
+      w-full p-3 rounded-xl border-2 text-left font-semibold text-sm leading-snug
+      transition-all duration-150
+      ${disabled ? 'opacity-50 cursor-not-allowed' : onClick ? 'cursor-pointer active:scale-[0.98]' : ''}
+      ${selected ? 'ring-2 ring-accent shadow-lg scale-[0.98]' : ''}
+      ${className}
+    `;
+
+    const styleMobile = isBlack
+      ? 'bg-[#1a1a2e] text-white border-white/50'
+      : isEffect
+      ? 'bg-yellow-100 text-black border-yellow-500'
+      : 'bg-white text-black border-gray-400';
+
+    return (
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`${baseMobile} ${styleMobile}`}>
+        <div className="flex flex-col gap-1 w-full">
+          {isEffect && card.effect && (
+            <span className="self-start text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-yellow-500 text-black">
+              {effectLabel(card.effect.type)}
+            </span>
+          )}
+          {card.isBlank ? (
+            <div className="flex items-center gap-2 opacity-60">
+              <PenLine size={16} />
+              <span className="text-xs">Blank Card</span>
+            </div>
+          ) : (
+            <span className="break-words">{card.text}</span>
+          )}
+          {isBlack && card.pickCount != null && card.pickCount > 1 && (
+            <span className="text-[10px] opacity-60 mt-0.5">Pick {card.pickCount}</span>
+          )}
+        </div>
+      </button>
+    );
+  }
+
+  // Desktop card rendering — unchanged
   const sizeClasses = {
-    sm: 'w-28 h-24 text-[10px] p-2 md:w-40 md:h-28 md:text-xs md:p-3',
-    compact: 'w-full max-w-[11rem] h-48 text-sm p-3 md:w-40 md:h-52 md:text-xs md:p-3',
-    md: 'w-full max-w-[13rem] h-60 text-base p-4 md:w-52 md:h-72 md:text-sm md:p-4',
-    lg: 'w-full max-w-[16rem] h-80 text-lg p-5 md:w-64 md:h-96 md:text-base md:p-6',
+    sm: 'w-40 h-28 text-xs p-3',
+    compact: 'w-40 h-52 text-xs p-3',
+    md: 'w-52 h-72 text-sm p-4',
+    lg: 'w-64 h-96 text-base p-6',
   };
 
   return (

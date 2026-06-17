@@ -1372,7 +1372,7 @@ export default function GameBoard() {
         {phase === 'playing' && !isJudge && blackCard && (
           <div className="flex flex-col md:flex-row items-start justify-start md:justify-center gap-2 md:gap-4 w-full min-h-0 px-2 md:px-4">
             {/* Black Card Column */}
-            <div className="flex flex-col items-center gap-2 shrink-0 py-2">
+            <div className="flex flex-col items-center md:items-center gap-2 shrink-0 py-2 w-full md:w-auto">
               <div className="text-white/40 text-xs font-bold uppercase tracking-wider">Question Card</div>
               <Card card={blackCard} size="sm" className="md:!w-52 md:!h-72 md:!text-sm md:!p-4" />
             </div>
@@ -1416,7 +1416,7 @@ export default function GameBoard() {
                 <p className="text-white/40 text-sm">You will return in {myPlayer?.abductionRounds ?? 0} round{(myPlayer?.abductionRounds ?? 0) > 1 ? 's' : ''} with an anal probe.</p>
               </div>
             ) : (
-            <div className="flex flex-col items-center gap-3 flex-1 min-w-0 min-h-0">
+            <div className="flex flex-col items-center md:items-center gap-3 flex-1 min-w-0 min-h-0 w-full">
               {/* Already submitted — show status + re-submit option */}
               {hasSubmitted && !reSubmitMode && (
                 <div className="flex flex-col items-center gap-3 animate-fade-in shrink-0 pt-4">
@@ -1457,7 +1457,7 @@ export default function GameBoard() {
                     Pick {effectivePickCount > 1 ? `${effectivePickCount} cards` : 'your best answer'}
                     {totalSelected > 0 && ` (${totalSelected}/${effectivePickCount})`}
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 overflow-y-auto px-2 pb-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 overflow-y-auto px-2 pb-2 w-full">
                 {gameState.hand.map((card: CardType) => {
                   const isSelected = selectedCardIds.includes(card.id);
                   const canSelect = isSelected || totalSelected < effectivePickCount;
@@ -1550,10 +1550,10 @@ export default function GameBoard() {
         {/* Judge waiting + Judging phases — row layout with scoreboard */}
         {!(phase === 'playing' && !isJudge) && (phase === 'playing' || phase === 'judging' || phase === 'voting') && (
           <div className="flex flex-col md:flex-row items-start justify-start md:justify-center gap-2 md:gap-4 w-full min-h-0 px-2 md:px-4">
-            <div className="flex flex-col items-center justify-start md:justify-center gap-4 md:gap-8 flex-1 min-w-0 overflow-y-auto py-3 md:py-6">
+            <div className="flex flex-col items-center md:items-center justify-start md:justify-center gap-4 md:gap-8 flex-1 min-w-0 overflow-y-auto py-3 md:py-6 w-full">
               {/* Black Card */}
               {blackCard && (
-                <div className="flex flex-col items-center gap-2 md:gap-3">
+                <div className="flex flex-col items-center md:items-center gap-2 md:gap-3 w-full md:w-auto">
                   <div className="text-white/40 text-xs font-bold uppercase tracking-wider">
                     {isJudge ? 'You are the Judge' : 'Question Card'}
                   </div>
