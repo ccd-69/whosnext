@@ -73,7 +73,16 @@ export default function Lobby() {
           if (me.isHost) {
             setStep('host');
           } else {
-            // Non-host should not be on lobby page; go to game
+            // Non-host should not be on lobby page; go to game.
+            // Persist active game first so GameBoard's tryRejoin() finds it.
+            addActiveGame({
+              roomCode: state.room.code,
+              roomId: state.room.id,
+              playerName: me.name,
+              mode: state.room.mode,
+              sessionId: me.sessionId,
+              lastSeenAt: Date.now(),
+            });
             navigate(`/game/${state.room.code}`);
           }
         }
@@ -142,7 +151,7 @@ export default function Lobby() {
     emit('join-room', roomCode.toUpperCase(), playerName, (joinedRoom: Room | null) => {
       if (joinedRoom) {
         setRoom(joinedRoom);
-        navigate(`/game/${joinedRoom.code}`);
+        // IMPORTANT: addActiveGame BEFORE navigate so GameBoard's tryRejoin() finds it on mount.
         const me = joinedRoom.players[joinedRoom.players.length - 1];
         addActiveGame({
           roomCode: joinedRoom.code,
@@ -152,6 +161,7 @@ export default function Lobby() {
           sessionId: me.sessionId,
           lastSeenAt: Date.now(),
         });
+        navigate(`/game/${joinedRoom.code}`);
       } else {
         setError('Room not found or full. Check the code and try again.');
       }
