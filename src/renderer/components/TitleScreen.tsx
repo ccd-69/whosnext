@@ -545,7 +545,7 @@ export default function TitleScreen() {
             onClick={() => { playClick(); navigate('/lobby/battle-royale'); }}
             onMouseEnter={() => { setHovered('battle-royale'); playHover(); }}
             onMouseLeave={() => setHovered(null)}
-            className={`flex flex-col w-full glass-card p-6 text-left transition-all duration-300 hover:border-red-500/50 hover:bg-surface-light/80 ${
+            className={`flex flex-col w-full glass-card p-4 sm:p-6 text-left transition-all duration-300 hover:border-red-500/50 hover:bg-surface-light/80 ${
               hovered === 'battle-royale' ? 'scale-[1.02] shadow-xl shadow-red-500/20' : ''
             }`}
           >
@@ -553,9 +553,9 @@ export default function TitleScreen() {
               <div className="p-1.5 sm:p-2 bg-red-500/20 rounded-lg">
                 <Sword size={20} className="sm:size-6 text-red-400" />
               </div>
-              <h2 className="text-2xl font-bold">Battle Royale</h2>
+              <h2 className="text-xl sm:text-2xl font-bold">Battle Royale</h2>
             </div>
-            <p className="text-white/60 text-sm mb-4">
+            <p className="text-white/60 text-xs sm:text-sm mb-2 sm:mb-4">
               Last one standing wins. Deal damage with winning cards, survive hidden modifiers, and eliminate your friends.
             </p>
             <div className="flex items-center gap-2 text-red-400 font-semibold text-sm">
@@ -580,7 +580,7 @@ export default function TitleScreen() {
 
       {/* Right Sidebar */}
       {user && (
-        <div className="w-64 border-l border-border flex flex-col shrink-0 bg-surface/40 backdrop-blur-sm z-20">
+        <div className="w-64 border-l border-border hidden md:flex flex-col shrink-0 bg-surface/40 backdrop-blur-sm z-20">
           {/* User Header */}
           <button
             onClick={() => { playClick(); setShowProfile(true); }}

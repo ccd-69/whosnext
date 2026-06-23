@@ -22,6 +22,9 @@ export default function TitleBar() {
     window.whosnextAPI?.closeWindow?.();
   }
 
+  // Hide entirely on web (non-Electron) - frame chrome is desktop-only
+  if (!isElectron) return null;
+
   return (
     <div className="h-10 w-full flex items-center justify-between bg-surface/80 border-b border-border select-none shrink-0 z-50">
       <div className={`h-full flex items-center px-4 ${isElectron ? 'flex-1 app-drag-region' : ''}`}>
