@@ -1718,20 +1718,33 @@ export default function GameBoard() {
               </p>
             </div>
             <div className="flex flex-col items-center gap-2">
-              <p className="text-white/40 text-sm font-bold uppercase tracking-wider">Winning Answer</p>
-              <div className="flex flex-wrap gap-2 items-center justify-center">
+              <p className="text-white/40 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+                <Crown size={14} className="text-yellow-400" /> Winning Answer
+              </p>
+              <div className="flex flex-wrap gap-2 items-center justify-center relative">
                 {winningCards.map((c: CardType) => (
-                  <Card key={c.id} card={c} size="lg" />
+                  <div key={c.id} className="relative">
+                    <Crown size={20} className="absolute -top-2 -right-2 text-yellow-400 drop-shadow-lg z-10" fill="currentColor" />
+                    <Card card={c} size="lg" />
+                  </div>
                 ))}
               </div>
+              <p className="text-sm text-accent font-semibold mt-1">
+                played by {room.players.find((p: Player) => p.id === winnerId)?.name || 'Unknown'}
+              </p>
             </div>
-            {submittedCards.filter((s: { playerId: string }) => s.playerId !== winnerId).length > 0 && (
-              <div className="flex flex-col items-center gap-3 w-full max-w-2xl">
-                <p className="text-white/40 text-sm font-bold uppercase tracking-wider">Other Submissions</p>
-                <div className="flex flex-wrap justify-center gap-4">
-                  {submittedCards.filter((s: { playerId: string }) => s.playerId !== winnerId).map((sub: { playerId: string; cards: CardType[]; effectCard?: CardType; submissionId: string; isReSubmit?: boolean }) => {
-                    const player = room.players.find((p: Player) => p.id === sub.playerId);
-                    return (
+            {(() => {
+              const winningSubId = (room as any).winningSubmissionId as string | undefined;
+              const firstWinnerSubId = (room as any).firstWinnerSubmissionId as string | undefined;
+              const losers = submittedCards.filter((s: { submissionId: string }) =>
+                s.submissionId !== winningSubId && s.submissionId !== firstWinnerSubId
+              );
+              if (losers.length === 0) return null;
+              return (
+                <div className="flex flex-col items-center gap-3 w-full max-w-2xl">
+                  <p className="text-white/40 text-sm font-bold uppercase tracking-wider">Other Submissions</p>
+                  <div className="flex flex-wrap justify-center gap-4">
+                    {losers.map((sub: { playerId: string; cards: CardType[]; effectCard?: CardType; submissionId: string; isReSubmit?: boolean }) => (
                       <div key={sub.submissionId} className="flex flex-col items-center gap-2 opacity-60">
                         <div className="flex flex-wrap gap-2 items-center justify-center">
                           {sub.cards.map((c) => (
@@ -1744,13 +1757,14 @@ export default function GameBoard() {
                             </div>
                           )}
                         </div>
-                        <span className="text-xs text-white/40">by {player?.name || 'Unknown'}</span>
+                        {/* No submitter name — losing players stay anonymous */}
+                        <span className="text-[10px] text-white/30 italic">anonymous</span>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
@@ -1798,7 +1812,12 @@ export default function GameBoard() {
                         </span>
                         <span className="font-semibold text-sm truncate">{p.name}</span>
                         <span className="font-bold text-sm text-right">{p.score}</span>
-                        <span className="font-bold text-sm text-right text-accent">${roundSummary?.currencyEarned[p.name]?.toFixed(2) ?? '0.00'}</span>
+                        <span className="font-bold text-sm text-right text-accent" title="Earned this round / total this game">
+                          {roundSummary?.currencyEarned[p.name]
+                            ? `+$${roundSummary.currencyEarned[p.name].toFixed(2)}`
+                            : '—'}
+                          <span className="block text-[10px] text-white/40 font-normal">total ${p.currency.toFixed(2)}</span>
+                        </span>
                       </div>
                     );
                   })}

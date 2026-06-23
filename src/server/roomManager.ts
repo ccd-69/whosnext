@@ -110,6 +110,10 @@ export class RoomManager {
       shopPurchasedBy: [],
       effectsUsedThisRound: [],
       eligibleForLeaderboard: false,
+      currencyEarnedThisRound: {},
+      paidDiscardEnabled: (opts as any).paidDiscardEnabled ?? false,
+      discardSingleCost: (opts as any).discardSingleCost ?? 1,
+      discardHandCost: (opts as any).discardHandCost ?? 3,
     };
     this.rooms.set(roomId, room);
 
@@ -212,6 +216,8 @@ export class RoomManager {
     room.shopCards = [];
     room.shopPurchasedBy = [];
     room.effectsUsedThisRound = [];
+    room.winningSubmissionId = undefined;
+    room.currencyEarnedThisRound = {};
     room.eligibleForLeaderboard = room.players.length >= 3;
     // Reset per-game counters, buffs, and currency
     for (const p of room.players) {
@@ -333,6 +339,8 @@ export class RoomManager {
     if (!deck) return;
 
     room.firstWinnerSubmissionId = undefined;
+    room.winningSubmissionId = undefined;
+    room.currencyEarnedThisRound = {};
     const previousSubmissions = [...room.submittedCards];
 
     // Discard previous round cards
@@ -813,6 +821,8 @@ export class RoomManager {
     winner.score += pointsAwarded;
     winner.currency += currencyAwarded;
     winner.totalEarnedThisGame += currencyAwarded;
+    room.currencyEarnedThisRound[winner.name] = (room.currencyEarnedThisRound[winner.name] || 0) + currencyAwarded;
+    room.winningSubmissionId = winningSub.submissionId;
     room.phase = 'reveal';
 
     if (winningSub.effectCard?.effect?.type === 'point_drain') {
@@ -850,6 +860,7 @@ export class RoomManager {
     firstWinner.score += firstPoints;
     firstWinner.currency += firstCurrency;
     firstWinner.totalEarnedThisGame += firstCurrency;
+    room.currencyEarnedThisRound[firstWinner.name] = (room.currencyEarnedThisRound[firstWinner.name] || 0) + firstCurrency;
     if (firstSub.effectCard?.effect?.type === 'point_drain') {
       firstWinner.score -= 1;
       this.io.to(room.id).emit('notification', `${firstWinner.name} was drained by a debuff card! (-1 point)`);
@@ -863,6 +874,7 @@ export class RoomManager {
     secondWinner.score += secondPoints;
     secondWinner.currency += secondCurrency;
     secondWinner.totalEarnedThisGame += secondCurrency;
+    room.currencyEarnedThisRound[secondWinner.name] = (room.currencyEarnedThisRound[secondWinner.name] || 0) + secondCurrency;
     if (secondSub.effectCard?.effect?.type === 'point_drain') {
       secondWinner.score -= 1;
       this.io.to(room.id).emit('notification', `${secondWinner.name} was drained by a debuff card! (-1 point)`);
@@ -1118,7 +1130,8 @@ export class RoomManager {
     const currencyEarned: Record<string, number> = {};
     room.players.forEach((p) => {
       scores[p.name] = p.score;
-      currencyEarned[p.name] = p.currency;
+      // Per-round delta only — not total wallet. Losers correctly get 0.
+      currencyEarned[p.name] = room.currencyEarnedThisRound[p.name] || 0;
     });
 
     this.io.to(room.id).emit('round-summary', {
@@ -1544,13 +1557,31 @@ export class RoomManager {
     }));
 
     // Sanitize submittedCards so players can't see each other's answers early
-    let visibleSubmissions = room.submittedCards;
+    // Also strip submitter identity so neither judge nor other players know WHO played which card
+    // (except the player themselves, and except the winning card during reveal/round-end)
+    let visibleSubmissions: typeof room.submittedCards = room.submittedCards;
     if (room.phase === 'playing') {
       // Only show your own submission during playing phase
       visibleSubmissions = room.submittedCards.filter((s) => s.playerId === player.id);
-    } else if (room.phase === 'judging') {
-      // Only judge sees all submissions; others wait blind
-      visibleSubmissions = player.id === room.judgeId ? room.submittedCards : [];
+    } else if (room.phase === 'judging' || room.phase === 'voting') {
+      // Everyone sees all played cards, but submitter identities are hidden.
+      // The player who submitted still sees their own playerId so the client can mark it as theirs.
+      visibleSubmissions = room.submittedCards.map((s) => ({
+        ...s,
+        playerId: s.playerId === player.id ? s.playerId : '',
+      }));
+    } else if (room.phase === 'reveal' || room.phase === 'round-end') {
+      // Only WINNING card(s) get playerId revealed; losing cards stay anonymous.
+      // Two-votes mode has up to two winners (first + final pick).
+      // The player who submitted still sees their own playerId.
+      const winnerIds = new Set<string>();
+      if (room.winningSubmissionId) winnerIds.add(room.winningSubmissionId);
+      if (room.firstWinnerSubmissionId) winnerIds.add(room.firstWinnerSubmissionId);
+      visibleSubmissions = room.submittedCards.map((s) => {
+        const isWinner = winnerIds.has(s.submissionId);
+        const showIdentity = isWinner || s.playerId === player.id;
+        return { ...s, playerId: showIdentity ? s.playerId : '' };
+      });
     }
 
     const state = {

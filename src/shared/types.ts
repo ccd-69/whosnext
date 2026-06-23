@@ -215,6 +215,14 @@ export interface Room {
   shopPurchasedBy: string[]; // player IDs who have already bought from shop this round
   effectsUsedThisRound: { playerName: string; effectType: CardEffectType }[];
   eligibleForLeaderboard: boolean;
+  // Reveal/round-end: which submission won this round (so client can show crown + winner name only)
+  winningSubmissionId?: string;
+  // Per-round currency delta — reset each round, used by round-summary display
+  currencyEarnedThisRound: Record<string, number>;
+  // Custom-game paid discard (whosnext-paid-discard feature)
+  paidDiscardEnabled?: boolean;
+  discardSingleCost?: number;
+  discardHandCost?: number;
 }
 
 export interface GameState {

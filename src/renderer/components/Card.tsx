@@ -110,10 +110,15 @@ export default function Card({
               {effectLabel(card.effect.type)}
             </span>
           )}
-          {card.isBlank ? (
+          {card.isBlank && (!card.text || card.text === '[blank]') ? (
             <div className="flex items-center gap-2 opacity-60">
               <PenLine size={16} />
               <span className="text-xs">Blank Card</span>
+            </div>
+          ) : card.isBlank ? (
+            <div className="flex items-start gap-1.5">
+              <PenLine size={14} className="mt-0.5 flex-shrink-0 opacity-50" />
+              <span className="break-words">{card.text}</span>
             </div>
           ) : (
             <span className="break-words">{card.text}</span>
@@ -153,7 +158,7 @@ export default function Card({
     >
       {revealed ? (
         <>
-          {card.isBlank ? (
+          {card.isBlank && (!card.text || card.text === '[blank]') ? (
             <div className="flex flex-col items-center justify-center gap-2 h-full w-full">
               <PenLine size={24} className={isBlack ? 'text-white/40' : 'text-black/40'} />
               <span className={`text-xs font-bold uppercase tracking-wider ${isBlack ? 'text-white/40' : 'text-black/40'}`}>
@@ -162,6 +167,13 @@ export default function Card({
               <span className={`text-[10px] ${isBlack ? 'text-white/30' : 'text-black/30'}`}>
                 Write your own answer
               </span>
+            </div>
+          ) : card.isBlank ? (
+            <div className="flex flex-col gap-2 w-full">
+              <span className={`self-start text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${isBlack ? 'bg-white/10 text-white/60' : 'bg-black/10 text-black/60'} flex items-center gap-1`}>
+                <PenLine size={10} /> Custom
+              </span>
+              <span className="font-bold leading-snug">{card.text}</span>
             </div>
           ) : (
             <div className="flex flex-col gap-2 w-full">
