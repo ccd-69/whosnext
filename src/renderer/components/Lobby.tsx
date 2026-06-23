@@ -30,6 +30,7 @@ export default function Lobby() {
   const [selectedEffectCards, setSelectedEffectCards] = useState<string[]>([]);
 
   const [connTimeout, setConnTimeout] = useState(false);
+  const [joining, setJoining] = useState(false);
 
   const isHost = step === 'host';
 
@@ -145,14 +146,19 @@ export default function Lobby() {
   }
 
   function handleJoinRoom() {
+    if (joining) return; // re-entry guard against rapid clicks
     if (!playerName.trim() || !roomCode.trim()) return;
+    setJoining(true);
     setError('');
     playClick();
     emit('join-room', roomCode.toUpperCase(), playerName, (joinedRoom: Room | null) => {
       if (joinedRoom) {
         setRoom(joinedRoom);
-        // IMPORTANT: addActiveGame BEFORE navigate so GameBoard's tryRejoin() finds it on mount.
-        const me = joinedRoom.players[joinedRoom.players.length - 1];
+        // Find the player matching THIS client (by name, isConnected). Server may have deduped,
+        // so the last player isn't necessarily us.
+        const me =
+          joinedRoom.players.find((p) => p.name === playerName && p.isConnected) ||
+          joinedRoom.players[joinedRoom.players.length - 1];
         addActiveGame({
           roomCode: joinedRoom.code,
           roomId: joinedRoom.id,
@@ -164,6 +170,7 @@ export default function Lobby() {
         navigate(`/game/${joinedRoom.code}`);
       } else {
         setError('Room not found or full. Check the code and try again.');
+        setJoining(false);
       }
     });
   }
@@ -556,10 +563,10 @@ export default function Lobby() {
             </div>
             <button
               onClick={handleJoinRoom}
-              disabled={!playerName.trim() || roomCode.length < 6}
+              disabled={joining || !playerName.trim() || roomCode.length < 6}
               className="btn-primary"
             >
-              Join Game
+              {joining ? 'Joining...' : 'Join Game'}
             </button>
             <button
               onClick={() => { playClick(); setStep('form'); }}

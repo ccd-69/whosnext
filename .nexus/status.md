@@ -1,6 +1,6 @@
 # Project Status -- whosnext (Who's Next?)
 
-_Last updated: Session 1 (nexus creation)_
+_Last updated: Session 3 (synced with git log)_
 
 ## Overall
 **Status: Active development / Near shippable.** Version 0.1.0. Full stack is
@@ -25,6 +25,19 @@ or is being actively deployed as a web app in addition to the Electron build.
 - /health endpoint for deployment platform health checks
 - /dev/seed endpoint (secret-guarded) with test data seeder
 - Electron main process + preload
+
+### Mobile UI pass (Jun 15-16, last code work)
+- Slow vote kick / end countdown timers 2.25x (1000ms -> 2250ms) to reduce screen flashing
+- Break mobile flicker feedback loop in GameBoard
+- Mobile UI polish: hamburger sidebar, card borders, responsive panels
+- Aggressive mobile overhaul: larger cards, minimal top bar, hamburger drawer
+  with players/actions, responsive grids, horizontal effect-card scroll
+- Fix mobile layout: justify-start, larger hand cards, smaller black cards on
+  mobile, floating chat button, stronger card borders
+- **Mobile text-based cards (HEAD, 8ac5c18b):** Card.tsx auto-detects mobile
+  viewport and renders compact text blocks instead of card shapes. Full-width
+  hand grid, slide-out chat panel.
+  Files: Card.tsx, ChatPanel.tsx, GameBoard.tsx
 
 ## Open Issues / Unknowns
 - [ ] `data/` folder -- what database? SQLite? JSON files? Schema not confirmed.

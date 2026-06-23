@@ -131,6 +131,38 @@ export class RoomManager {
   joinRoom(code: string, playerName: string, socketId: string, userId?: string, username?: string): Room | null {
     const room = Array.from(this.rooms.values()).find((r) => r.code === code);
     if (!room) return null;
+
+    // Idempotency: same socket already joined -> return as-is.
+    const existingBySocket = room.players.find((pl) => pl.socketId === socketId);
+    if (existingBySocket) {
+      console.log(`[RoomManager] join-room dedupe (socket): ${existingBySocket.name} already in ${room.code}`);
+      return room;
+    }
+
+    // Logged-in user re-joining -> reconnect existing slot to new socket.
+    if (userId) {
+      const existingByUser = room.players.find((pl) => pl.userId === userId);
+      if (existingByUser) {
+        existingByUser.socketId = socketId;
+        existingByUser.isConnected = true;
+        room.updatedAt = Date.now();
+        console.log(`[RoomManager] join-room dedupe (user): ${existingByUser.name} reconnected in ${room.code}`);
+        return room;
+      }
+    }
+
+    // Guest name match while old slot disconnected -> reconnect.
+    if (playerName) {
+      const existingByName = room.players.find((pl) => pl.name === playerName && !pl.isConnected);
+      if (existingByName) {
+        existingByName.socketId = socketId;
+        existingByName.isConnected = true;
+        room.updatedAt = Date.now();
+        console.log(`[RoomManager] join-room dedupe (name+disconnected): ${existingByName.name} reconnected in ${room.code}`);
+        return room;
+      }
+    }
+
     if (room.players.length >= room.maxPlayers) return null;
     if (room.phase !== 'lobby') return null;
 

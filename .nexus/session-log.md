@@ -23,6 +23,28 @@ Append-only. Newest at bottom.
 
 ---
 
+## Session 3 -- Sync status.md with actual code history
+
+**Goals this session:**
+1. Find the last real code work (status.md was stale -- only listed Session 1 nexus creation).
+2. Update status.md to reflect the mobile UI overhaul streak from Jun 15-16.
+
+**Actions:**
+- Ran git log. Found HEAD = 8ac5c18b "mobile text-based cards" (Jun 16 2026).
+- Identified 6-commit mobile pass: countdown slowdown -> flicker fix -> sidebar
+  polish -> aggressive overhaul -> layout fixes -> text-based mobile cards.
+- Added "Mobile UI pass (Jun 15-16)" subsection under Done in status.md.
+- Working tree clean except untracked server.log.
+
+**Notes:**
+- server.log is untracked at repo root -- likely should be in .gitignore. Check next session.
+- No "mobile" entry in Open Issues, but worth a manual mobile smoke test now that
+  the text-based card mode is live.
+- Pre-mobile work: deployment configs (Fly/Render/Railway), CSP/CORS hardening,
+  rejoin fixes.
+
+---
+
 ## Session 1 -- Nexus creation
 
 **Goals this session:**
