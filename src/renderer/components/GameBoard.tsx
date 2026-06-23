@@ -1684,15 +1684,56 @@ export default function GameBoard() {
               )}
 
               {phase === 'judging' && !isJudge && (
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-16 h-16 border-4 border-accent/20 border-t-accent rounded-full animate-spin" />
+                <div className="flex flex-col items-center gap-4 w-full">
                   <p className="text-white/60">
                     {room.mode === 'two-votes' && room.firstWinnerSubmissionId
-                      ? 'Waiting for the judge to pick the second winner...'
+                      ? 'Judge is picking the second winner...'
                       : room.mode === 'battle-royale'
-                      ? 'Waiting for the judge to pick the deadliest answer...'
-                      : 'Waiting for the judge to pick a winner...'}
+                      ? 'Judge is picking the deadliest answer...'
+                      : 'Judge is picking a winner...'}
                   </p>
+                  <div className="flex flex-wrap justify-center gap-4">
+                    {submittedCards.map((sub: { playerId: string; cards: CardType[]; effectCard?: CardType; isReSubmit?: boolean; submissionId: string }) => {
+                      const isMine = sub.playerId === gameState?.myPlayerId;
+                      const isFirstWinner = room.firstWinnerSubmissionId === sub.submissionId;
+                      return (
+                        <div
+                          key={sub.submissionId}
+                          className={`flex flex-col items-center gap-2 ${isFirstWinner ? 'opacity-40' : ''}`}
+                        >
+                          <div className="flex flex-wrap gap-2 items-center justify-center">
+                            {sub.cards.map((c) => (
+                              <Card key={c.id} card={c} size="md" />
+                            ))}
+                            {sub.effectCard && (
+                              <div className="flex flex-col items-center gap-1">
+                                <Card card={sub.effectCard} size="sm" />
+                                <span className="text-[10px] text-yellow-400 font-bold uppercase">Effect</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {sub.isReSubmit && (
+                              <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent font-bold uppercase">
+                                <Flag size={10} /> Re-Submit
+                              </span>
+                            )}
+                            {isFirstWinner && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 font-bold uppercase">
+                                1st Winner
+                              </span>
+                            )}
+                            {isMine && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent font-bold uppercase">
+                                Yours
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin mt-2" />
                 </div>
               )}
 
@@ -1787,6 +1828,56 @@ export default function GameBoard() {
                 </p>
               )}
             </div>
+
+            {/* Winning Answer */}
+            {winningCards.length > 0 && (
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-white/40 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+                  <Crown size={14} className="text-yellow-400" /> Winning Answer
+                </p>
+                <div className="flex flex-wrap gap-2 items-center justify-center">
+                  {winningCards.map((c: CardType) => (
+                    <div key={c.id} className="relative">
+                      <Crown size={20} className="absolute -top-2 -right-2 text-yellow-400 drop-shadow-lg z-10" fill="currentColor" />
+                      <Card card={c} size="md" />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-accent font-semibold mt-1">
+                  played by {room.players.find((p: Player) => p.id === winnerId)?.name || 'Unknown'}
+                </p>
+              </div>
+            )}
+
+            {/* Losing Submissions */}
+            {(() => {
+              const winningSubId = (room as any).winningSubmissionId as string | undefined;
+              const firstWinnerSubId = (room as any).firstWinnerSubmissionId as string | undefined;
+              const losers = submittedCards.filter((s: { submissionId: string }) =>
+                s.submissionId !== winningSubId && s.submissionId !== firstWinnerSubId
+              );
+              if (losers.length === 0) return null;
+              return (
+                <div className="flex flex-col items-center gap-2 w-full max-w-2xl">
+                  <p className="text-white/40 text-xs font-bold uppercase tracking-wider">Other Submissions</p>
+                  <div className="flex flex-wrap justify-center gap-3">
+                    {losers.map((sub: { playerId: string; cards: CardType[]; effectCard?: CardType; submissionId: string; isReSubmit?: boolean }) => (
+                      <div key={sub.submissionId} className="flex flex-col items-center gap-1 opacity-60">
+                        <div className="flex flex-wrap gap-1.5 items-center justify-center">
+                          {sub.cards.map((c) => (
+                            <Card key={c.id} card={c} size="sm" />
+                          ))}
+                          {sub.effectCard && (
+                            <Card card={sub.effectCard} size="sm" />
+                          )}
+                        </div>
+                        <span className="text-[10px] text-white/30 italic">anonymous</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Scoreboard + Currency */}
             {finalScores && (
